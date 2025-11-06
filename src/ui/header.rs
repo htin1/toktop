@@ -1,0 +1,93 @@
+use crate::app::{App, Provider};
+use crate::ui::colors::ColorPalette;
+use chrono::Utc;
+use ratatui::{
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+    Frame,
+};
+
+pub fn render(f: &mut Frame, app: &App, area: Rect) {
+    let provider = app.current_provider();
+    let palette = ColorPalette::for_provider(provider);
+    let total = match provider {
+        Provider::OpenAI => app.data.openai_total_cost(),
+        Provider::Anthropic => app.data.anthropic_total_cost(),
+    };
+    let avg_per_day = total / 7.0;
+    
+    // Calculate date range metadata
+    let data = match provider {
+        Provider::OpenAI => &app.data.openai,
+        Provider::Anthropic => &app.data.anthropic,
+    };
+    
+    let date_range = if data.is_empty() {
+        "No data".to_string()
+    } else {
+        let min_date = data.iter().map(|d| d.date).min().unwrap_or(Utc::now());
+        let max_date = data.iter().map(|d| d.date).max().unwrap_or(Utc::now());
+        format!(
+            "{} - {}",
+            min_date.format("%m/%d"),
+            max_date.format("%m/%d")
+        )
+    };
+    
+    let text = vec![
+        Line::from(vec![
+            Span::styled(
+                "Totktop",
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" - Monitor your LLM API spending"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Total Cost (7d): ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("${:.2}", total),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("Average per day: ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("${:.2}", avg_per_day),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Provider: ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                provider.label(),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(format!(" | View: Cost")),
+        ]),
+        Line::from(vec![
+            Span::styled("Date Range: ", Style::default().fg(Color::Gray)),
+            Span::raw(date_range),
+        ]),
+    ];
+    f.render_widget(
+        Paragraph::new(text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Summary"),
+        ),
+        area,
+    );
+}
+
