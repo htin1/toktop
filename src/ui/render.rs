@@ -32,8 +32,8 @@ pub fn render(f: &mut Frame, app: &App) {
     content::render(f, app, vertical_chunks[1]);
     footer::render(f, app, vertical_chunks[2]);
 
-    // Show loading popup overlay if loading
-    if app.loading {
+    // Show popup overlay if loading or API key popup is active
+    if app.loading || app.api_key_popup_active.is_some() {
         popup::render(f, app);
     }
 }

@@ -1,7 +1,6 @@
 use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
 use crate::models::{DailyData, DailyUsageData, UsageData};
 use chrono::{DateTime, Duration, Utc};
-use std::io::{self, Write};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Provider {
@@ -40,6 +39,8 @@ pub struct App {
     pub current_view: View,
     pub openai_error: Option<String>,
     pub anthropic_error: Option<String>,
+    pub api_key_popup_active: Option<Provider>,
+    pub api_key_input: String,
 }
 
 impl App {
@@ -54,6 +55,8 @@ impl App {
             current_view: View::Cost,
             openai_error: None,
             anthropic_error: None,
+            api_key_popup_active: None,
+            api_key_input: String::new(),
         }
     }
 
@@ -135,6 +138,48 @@ impl App {
         match provider {
             Provider::Anthropic => Some(&self.data.anthropic_usage),
             Provider::OpenAI => Some(&self.data.openai_usage),
+        }
+    }
+
+    pub fn show_api_key_popup(&mut self, provider: Provider) {
+        self.api_key_popup_active = Some(provider);
+        self.api_key_input.clear();
+    }
+
+    pub fn cancel_api_key_popup(&mut self) {
+        self.api_key_popup_active = None;
+        self.api_key_input.clear();
+    }
+
+    pub fn submit_api_key(&mut self) -> bool {
+        if let Some(provider) = self.api_key_popup_active {
+            let key = self.api_key_input.trim().to_string();
+            if !key.is_empty() {
+                match provider {
+                    Provider::OpenAI => {
+                        self.set_openai_client(key);
+                    }
+                    Provider::Anthropic => {
+                        self.set_anthropic_client(key);
+                    }
+                }
+                self.api_key_popup_active = None;
+                self.api_key_input.clear();
+                return true; // Key was submitted
+            }
+        }
+        false
+    }
+
+    pub fn handle_api_key_input(&mut self, key_code: crossterm::event::KeyCode) {
+        match key_code {
+            crossterm::event::KeyCode::Char(c) => {
+                self.api_key_input.push(c);
+            }
+            crossterm::event::KeyCode::Backspace => {
+                self.api_key_input.pop();
+            }
+            _ => {}
         }
     }
 }
@@ -320,10 +365,3 @@ pub async fn fetch_usage_data(
     }
 }
 
-pub fn prompt_for_key(service: &str) -> String {
-    print!("Enter {} Admin API Key: ", service);
-    io::stdout().flush().unwrap();
-    let mut key = String::new();
-    io::stdin().read_line(&mut key).unwrap();
-    key.trim().to_string()
-}

@@ -3,7 +3,7 @@ mod app;
 mod models;
 mod ui;
 
-use app::{prompt_for_key, App};
+use app::App;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -15,24 +15,8 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let openai_key = std::env::var("OPENAI_ADMIN_KEY").ok().or_else(|| {
-        if std::env::var("ANTHROPIC_ADMIN_KEY").is_ok() {
-            None
-        } else {
-            Some(prompt_for_key("OpenAI"))
-        }
-    });
-    let anthropic_key = std::env::var("ANTHROPIC_ADMIN_KEY").ok().or_else(|| {
-        if openai_key.is_some() {
-            None
-        } else {
-            Some(prompt_for_key("Anthropic"))
-        }
-    });
-    if openai_key.is_none() && anthropic_key.is_none() {
-        eprintln!("Error: At least one API key required");
-        return Ok(());
-    }
+    let openai_key = std::env::var("OPENAI_ADMIN_KEY").ok();
+    let anthropic_key = std::env::var("ANTHROPIC_ADMIN_KEY").ok();
 
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen)?;
@@ -52,6 +36,15 @@ async fn main() -> io::Result<()> {
     spawn_fetch_task(app.clone(), false);
 
     loop {
+        // Check for missing API key and show popup if needed
+        {
+            let mut app_lock = app.lock().await;
+            let current_provider = app_lock.current_provider();
+            if !app_lock.has_client(current_provider) && app_lock.api_key_popup_active.is_none() {
+                app_lock.show_api_key_popup(current_provider);
+            }
+        }
+
         // Render UI
         {
             let app_lock = app.lock().await;
@@ -63,26 +56,38 @@ async fn main() -> io::Result<()> {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     let mut app_lock = app.lock().await;
+                    let popup_active = app_lock.api_key_popup_active.is_some();
+                    
                     match key.code {
+                        KeyCode::Up | KeyCode::Down => {
+                            let delta = if key.code == KeyCode::Up { -1 } else { 1 };
+                            app_lock.move_menu_cursor(delta);
+                            if app_lock.select_menu_cursor() {
+                                let new_provider = app_lock.current_provider();
+                                if !app_lock.has_client(new_provider) {
+                                    app_lock.show_api_key_popup(new_provider);
+                                } else {
+                                    app_lock.cancel_api_key_popup();
+                                }
+                                drop(app_lock);
+                                spawn_fetch_task(app.clone(), false);
+                            }
+                        }
+                        KeyCode::Enter if popup_active => {
+                            if app_lock.submit_api_key() {
+                                drop(app_lock);
+                                spawn_fetch_task(app.clone(), false);
+                            }
+                        }
+                        KeyCode::Esc if popup_active => {
+                            app_lock.cancel_api_key_popup();
+                        }
+                        _ if popup_active => {
+                            app_lock.handle_api_key_input(key.code);
+                        }
                         KeyCode::Char('r') | KeyCode::Char('R') => {
                             drop(app_lock);
                             spawn_fetch_task(app.clone(), true);
-                        }
-                        KeyCode::Up => {
-                            app_lock.move_menu_cursor(-1);
-                            let provider_changed = app_lock.select_menu_cursor();
-                            drop(app_lock);
-                            if provider_changed {
-                                spawn_fetch_task(app.clone(), false);
-                            }
-                        }
-                        KeyCode::Down => {
-                            app_lock.move_menu_cursor(1);
-                            let provider_changed = app_lock.select_menu_cursor();
-                            drop(app_lock);
-                            if provider_changed {
-                                spawn_fetch_task(app.clone(), false);
-                            }
                         }
                         KeyCode::Tab => {
                             app_lock.toggle_view();
@@ -93,7 +98,6 @@ async fn main() -> io::Result<()> {
                 }
             }
         } else {
-            // No event, just continue loop to re-render
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     }
@@ -110,25 +114,21 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
             let mut app_lock = app.lock().await;
             let provider = app_lock.current_provider();
             
-            // Check if data already exists for this provider
+            if !app_lock.has_client(provider) {
+                return;
+            }
+            
             let data_exists = match provider {
                 app::Provider::OpenAI => !app_lock.data.openai.is_empty(),
                 app::Provider::Anthropic => !app_lock.data.anthropic.is_empty(),
             };
             
-            // Only fetch if data doesn't exist or if forced refresh
             let should_fetch = !data_exists || force_refresh;
-            
             if should_fetch {
                 app_lock.loading = true;
-                // Clear error for the current provider only
                 match provider {
-                    app::Provider::OpenAI => {
-                        app_lock.openai_error = None;
-                    }
-                    app::Provider::Anthropic => {
-                        app_lock.anthropic_error = None;
-                    }
+                    app::Provider::OpenAI => app_lock.openai_error = None,
+                    app::Provider::Anthropic => app_lock.anthropic_error = None,
                 }
             }
             
@@ -147,7 +147,6 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
         let result = app::fetch_usage_data(provider, openai_client, anthropic_client).await;
 
         let mut app_lock = app.lock().await;
-        // Only update data for the provider we fetched
         match provider {
             app::Provider::OpenAI => {
                 app_lock.data.openai = result.data.openai;
