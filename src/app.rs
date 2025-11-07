@@ -41,6 +41,7 @@ pub struct App {
     pub anthropic_error: Option<String>,
     pub api_key_popup_active: Option<Provider>,
     pub api_key_input: String,
+    pub animation_frame: u32,
 }
 
 impl App {
@@ -57,6 +58,7 @@ impl App {
             anthropic_error: None,
             api_key_popup_active: None,
             api_key_input: String::new(),
+            animation_frame: 0,
         }
     }
 

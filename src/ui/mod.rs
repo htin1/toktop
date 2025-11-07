@@ -1,3 +1,4 @@
+mod banner;
 mod colors;
 mod content;
 mod footer;

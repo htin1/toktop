@@ -47,7 +47,18 @@ async fn main() -> io::Result<()> {
 
         // Render UI
         {
-            let app_lock = app.lock().await;
+            let mut app_lock = app.lock().await;
+            let provider = app_lock.current_provider();
+            let has_data = match provider {
+                app::Provider::OpenAI => !app_lock.data.openai.is_empty(),
+                app::Provider::Anthropic => !app_lock.data.anthropic.is_empty(),
+            };
+            
+            if app_lock.loading || !has_data {
+                app_lock.animation_frame = app_lock.animation_frame.wrapping_add(1);
+            } else {
+                app_lock.animation_frame = 0;
+            }
             terminal.draw(|f| ui::render(f, &app_lock))?;
         }
 

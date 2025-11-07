@@ -1,4 +1,5 @@
 use crate::app::{App, Provider};
+use crate::ui::banner;
 use crate::ui::colors::ColorPalette;
 use crate::ui::utils::format_tokens;
 use chrono::Utc;
@@ -49,8 +50,16 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ),
     };
 
-    let mut text = vec![
-        Line::from(vec![
+    let mut text = vec![];
+
+    // Check if we have data for the current provider
+    let has_data = !data.is_empty();
+    
+    // Render animated ASCII art when loading OR when waiting for API key (no data)
+    if app.loading || !has_data {
+        text.extend(banner::render_animated_banner(app, &palette));
+    } else {
+        text.push(Line::from(vec![
             Span::styled(
                 "Toktop",
                 Style::default()
@@ -58,27 +67,28 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" - Monitor your LLM API spending"),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Total Cost (7d): ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                format!("${:.2}", total),
-                Style::default()
-                    .fg(palette.primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        Line::from(vec![
-            Span::styled("Average per day: ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                format!("${:.2}", avg_per_day),
-                Style::default()
-                    .fg(palette.primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
-    ];
+        ]));
+    }
+
+    text.push(Line::from(""));
+    text.push(Line::from(vec![
+        Span::styled("Total Cost (7d): ", Style::default().fg(Color::Gray)),
+        Span::styled(
+            format!("${:.2}", total),
+            Style::default()
+                .fg(palette.primary)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    text.push(Line::from(vec![
+        Span::styled("Average per day: ", Style::default().fg(Color::Gray)),
+        Span::styled(
+            format!("${:.2}", avg_per_day),
+            Style::default()
+                .fg(palette.primary)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
 
     // Add usage statistics for both providers
     if total_input_tokens > 0 || total_output_tokens > 0 {
