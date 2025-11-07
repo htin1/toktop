@@ -1,5 +1,5 @@
 use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
-use crate::models::{DailyData, UsageData};
+use crate::models::{DailyData, DailyUsageData, UsageData};
 use chrono::{DateTime, Duration, Utc};
 use std::io::{self, Write};
 
@@ -115,6 +115,13 @@ impl App {
             Provider::Anthropic => Some(&self.data.anthropic),
         }
     }
+
+    pub fn usage_data_for_provider(&self, provider: Provider) -> Option<&[DailyUsageData]> {
+        match provider {
+            Provider::Anthropic => Some(&self.data.anthropic_usage),
+            Provider::OpenAI => Some(&self.data.openai_usage),
+        }
+    }
 }
 
 pub async fn fetch_usage_data(
@@ -129,7 +136,16 @@ pub async fn fetch_usage_data(
     match provider {
         Provider::OpenAI => {
             if let Some(client) = openai_client {
-                match client.fetch_costs().await {
+                let start_time = Utc::now() - Duration::days(7);
+                
+                // Fetch cost and usage data in parallel
+                let (costs_result, usage_result) = tokio::join!(
+                    client.fetch_costs(),
+                    client.fetch_usage(start_time),
+                );
+                
+                // Process cost data
+                match costs_result {
                     Ok(buckets) => {
                         for bucket in buckets {
                             let date = DateTime::from_timestamp(bucket.start_time, 0)
@@ -153,12 +169,63 @@ pub async fn fetch_usage_data(
                         openai_error = Some(e.to_string());
                     }
                 }
+                
+                // Process usage data
+                match usage_result {
+                    Ok(buckets) => {
+                        for bucket in buckets {
+                            let date = DateTime::from_timestamp(bucket.start_time, 0)
+                                .unwrap_or(Utc::now() - Duration::days(7))
+                                .date_naive()
+                                .and_hms_opt(0, 0, 0)
+                                .unwrap();
+                            let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
+                            
+                            for result in bucket.results {
+                                // For completions: input_tokens and output_tokens are present
+                                // For embeddings: only input_tokens is present (no output_tokens)
+                                // For images: images field is present (no tokens)
+                                let input_tokens = result.input_tokens;
+                                let output_tokens = result.output_tokens;
+                                
+                                // Only add if there are actual tokens (skip images which don't have tokens)
+                                if input_tokens > 0 || output_tokens > 0 {
+                                    usage_data.openai_usage.push(DailyUsageData {
+                                        date,
+                                        input_tokens,
+                                        output_tokens,
+                                        api_key_id: result.api_key_id.clone(),
+                                        model: result.model.clone(),
+                                    });
+                                }
+                            }
+                        }
+                        usage_data.openai_usage.sort_by_key(|d| d.date);
+                    }
+                    Err(e) => {
+                        // Don't overwrite cost error, but append usage error if cost succeeded
+                        if openai_error.is_none() {
+                            openai_error = Some(format!("Usage fetch failed: {}", e));
+                        } else {
+                            let cost_err = openai_error.clone().unwrap();
+                            openai_error = Some(format!("{}; Usage fetch failed: {}", cost_err, e));
+                        }
+                    }
+                }
             }
         }
         Provider::Anthropic => {
             if let Some(client) = anthropic_client {
                 let start_time = Utc::now() - Duration::days(7);
-                match client.fetch_costs(start_time).await {
+                
+                // Fetch cost and usage data in parallel
+                let (costs_result, usage_result) = tokio::join!(
+                    client.fetch_costs(start_time),
+                    client.fetch_usage(start_time),
+                );
+                
+                // Process cost data
+                match costs_result {
                     Ok(buckets) => {
                         for bucket in buckets {
                             if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
@@ -183,6 +250,44 @@ pub async fn fetch_usage_data(
                     }
                     Err(e) => {
                         anthropic_error = Some(e.to_string());
+                    }
+                }
+                
+                // Process usage data
+                match usage_result {
+                    Ok(buckets) => {
+                        for bucket in buckets {
+                            if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
+                                let date = bucket_start.with_timezone(&Utc);
+                                for result in bucket.results {
+                                    // Calculate total input tokens
+                                    let input_tokens = result.uncached_input_tokens
+                                        + result.cache_creation.ephemeral_1h_input_tokens
+                                        + result.cache_creation.ephemeral_5m_input_tokens
+                                        + result.cache_read_input_tokens;
+                                    
+                                    if input_tokens > 0 || result.output_tokens > 0 {
+                                        usage_data.anthropic_usage.push(DailyUsageData {
+                                            date,
+                                            input_tokens,
+                                            output_tokens: result.output_tokens,
+                                            api_key_id: None,
+                                            model: result.model.clone(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        usage_data.anthropic_usage.sort_by_key(|d| d.date);
+                    }
+                    Err(e) => {
+                        // Don't overwrite cost error, but append usage error if cost succeeded
+                        if anthropic_error.is_none() {
+                            anthropic_error = Some(format!("Usage fetch failed: {}", e));
+                        } else {
+                            let cost_err = anthropic_error.clone().unwrap();
+                            anthropic_error = Some(format!("{}; Usage fetch failed: {}", cost_err, e));
+                        }
                     }
                 }
             }

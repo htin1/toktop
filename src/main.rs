@@ -148,10 +148,12 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
         match provider {
             app::Provider::OpenAI => {
                 app_lock.data.openai = result.data.openai;
+                app_lock.data.openai_usage = result.data.openai_usage;
                 app_lock.openai_error = result.openai_error;
             }
             app::Provider::Anthropic => {
                 app_lock.data.anthropic = result.data.anthropic;
+                app_lock.data.anthropic_usage = result.data.anthropic_usage;
                 app_lock.anthropic_error = result.anthropic_error;
             }
         }

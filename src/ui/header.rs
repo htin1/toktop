@@ -1,5 +1,6 @@
 use crate::app::{App, Provider};
 use crate::ui::colors::ColorPalette;
+use crate::ui::utils::format_tokens;
 use chrono::Utc;
 use ratatui::{
     layout::Rect,
@@ -36,7 +37,17 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         )
     };
     
-    let text = vec![
+    // Get usage statistics for both providers
+    let (total_input_tokens, total_output_tokens) = match provider {
+        Provider::Anthropic => {
+            (app.data.anthropic_total_input_tokens(), app.data.anthropic_total_output_tokens())
+        }
+        Provider::OpenAI => {
+            (app.data.openai_total_input_tokens(), app.data.openai_total_output_tokens())
+        }
+    };
+    
+    let mut text = vec![
         Line::from(vec![
             Span::styled(
                 "Totktop",
@@ -65,22 +76,34 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
         ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Provider: ", Style::default().fg(Color::Gray)),
+    ];
+    
+    // Add usage statistics for both providers
+    if total_input_tokens > 0 || total_output_tokens > 0 {
+        text.push(Line::from(""));
+        text.push(Line::from(vec![
+            Span::styled("Total Tokens (7d): ", Style::default().fg(Color::Gray)),
             Span::styled(
-                provider.label(),
+                format_tokens(total_input_tokens + total_output_tokens),
                 Style::default()
                     .fg(palette.primary)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw(format!(" | View: Cost")),
-        ]),
-        Line::from(vec![
-            Span::styled("Date Range: ", Style::default().fg(Color::Gray)),
-            Span::raw(date_range),
-        ]),
-    ];
+        ]));
+        text.push(Line::from(vec![
+            Span::styled("  Input: ", Style::default().fg(Color::Cyan)),
+            Span::raw(format_tokens(total_input_tokens)),
+            Span::raw(" | "),
+            Span::styled("Output: ", Style::default().fg(Color::Magenta)),
+            Span::raw(format_tokens(total_output_tokens)),
+        ]));
+    }
+    
+    text.push(Line::from(vec![
+        Span::styled("Date Range: ", Style::default().fg(Color::Gray)),
+        Span::raw(date_range),
+    ]));
+    
     f.render_widget(
         Paragraph::new(text).block(
             Block::default()
