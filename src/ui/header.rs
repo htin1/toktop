@@ -50,7 +50,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let mut text = vec![
         Line::from(vec![
             Span::styled(
-                "Totktop",
+                "Toktop",
                 Style::default()
                     .fg(palette.primary)
                     .add_modifier(Modifier::BOLD),
