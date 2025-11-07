@@ -101,10 +101,7 @@ fn render_api_key_popup(
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    "You can also set ",
-                    Style::default().fg(Color::White),
-                ),
+                Span::styled("You can also set ", Style::default().fg(Color::White)),
                 Span::styled(
                     format!("${}", env_var_name),
                     Style::default()

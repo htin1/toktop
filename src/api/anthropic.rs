@@ -1,5 +1,6 @@
 use crate::models::{
-    AnthropicCostBucket, AnthropicCostResponse, AnthropicUsageResponse, AnthropicUsageTimeBucket,
+    AnthropicApiKeyResponse, AnthropicCostBucket, AnthropicCostResponse, AnthropicUsageResponse,
+    AnthropicUsageTimeBucket,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -80,6 +81,7 @@ impl AnthropicClient {
                 .query(&[
                     ("starting_at", start.as_str()),
                     ("group_by[]", "model"),
+                    ("group_by[]", "api_key_id"),
                     ("bucket_width", "1d"),
                 ]);
             if let Some(ref p) = page {
@@ -106,5 +108,35 @@ impl AnthropicClient {
             page = resp.next_page;
         }
         Ok(all_data)
+    }
+
+    pub async fn fetch_api_key_name(&self, api_key_id: &str) -> Result<String> {
+        let url = format!("{}/api_keys/{}", self.base_url, api_key_id);
+        let response = self
+            .client
+            .get(&url)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .send()
+            .await
+            .context("Failed to fetch API key details")?;
+
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .context("Failed to read response body")?;
+
+        if !status.is_success() {
+            return Err(anyhow::anyhow!("API error: {} - {}", status, text));
+        }
+
+        let resp: AnthropicApiKeyResponse = serde_json::from_str(&text).context(format!(
+            "Failed to parse API key response. Status: {}. Response: {}",
+            status,
+            text.chars().take(500).collect::<String>()
+        ))?;
+
+        Ok(resp.name)
     }
 }

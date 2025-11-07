@@ -69,7 +69,7 @@ impl OpenAIClient {
 
         loop {
             let mut url = format!(
-                "{}/usage/{}?start_time={}&interval=1d&group_by=model",
+                "{}/usage/{}?start_time={}&interval=1d&group_by=model&group_by=api_key_id",
                 self.base_url, endpoint, start_ts
             );
             if let Some(ref p) = page {

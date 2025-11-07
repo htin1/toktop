@@ -1,12 +1,12 @@
 use crate::app::App;
-use crate::ui::{content, footer, header, menu, popup, view};
+use crate::ui::{content, footer, header, options, popup};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     Frame,
 };
 
 pub fn render(f: &mut Frame, app: &App) {
-    // Top % for header panel (menu + view + summary), remaining space minus footer for chart, footer at bottom
+    // Top panel (options + summary)
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -16,20 +16,13 @@ pub fn render(f: &mut Frame, app: &App) {
         ])
         .split(f.size());
 
-    // Top panel: split horizontally - left side (menu + view) and right side (summary)
+    // Top panel: split horizontally - left side (options) and right side (summary)
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(vertical_chunks[0]);
 
-    // Top Left side: split vertically - menu on top, view on bottom
-    let left_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(top_chunks[0]);
-
-    menu::render(f, app, left_chunks[0]);
-    view::render(f, app, left_chunks[1]);
+    options::render(f, app, top_chunks[0]);
     header::render(f, app, top_chunks[1]);
 
     // Middle section: full width chart

@@ -21,7 +21,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let has_data = !data.is_empty();
-    
+
     if app.loading || !has_data {
         let mut text = vec![];
         text.extend(banner::render_animated_banner(app, &palette));

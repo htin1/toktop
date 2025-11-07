@@ -29,7 +29,7 @@ pub fn render_animated_banner(app: &App, palette: &ColorPalette) -> Vec<Line<'st
     let primary_color = palette.primary;
 
     let current_chunk_idx = (app.animation_frame / FRAMES_PER_CHUNK) as usize % TOTAL_CHUNKS;
-    
+
     // Calculate the column range for the currently jumping chunk
     let chunk_start = current_chunk_idx * CHUNK_WIDTH;
     let chunk_end = chunk_start + CHUNK_WIDTH;
@@ -43,13 +43,16 @@ pub fn render_animated_banner(app: &App, palette: &ColorPalette) -> Vec<Line<'st
         for (char_idx, original_char) in original_line.chars().enumerate() {
             // Check if this column is in the jumping chunk
             let is_in_jumping_chunk = char_idx >= chunk_start && char_idx < chunk_end;
-            
+
             // Check if a character from line below (in the jumping chunk) jumped up to this position
             let jumped_char = if line_idx + 1 < ASCII_LINES.len()
                 && is_in_jumping_chunk
                 && char_idx < ASCII_LINES[line_idx + 1].len()
             {
-                let below_char = ASCII_LINES[line_idx + 1].chars().nth(char_idx).unwrap_or(' ');
+                let below_char = ASCII_LINES[line_idx + 1]
+                    .chars()
+                    .nth(char_idx)
+                    .unwrap_or(' ');
                 if !below_char.is_whitespace() {
                     Some(below_char)
                 } else {

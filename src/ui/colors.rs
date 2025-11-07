@@ -57,6 +57,19 @@ impl ColorPalette {
                 Color::Magenta,
                 Color::Yellow,
                 Color::LightBlue,
+                Color::Rgb(0x4A, 0x90, 0xE2), // Bright blue
+                Color::Rgb(0x50, 0xC8, 0x78), // Mint green
+                Color::Rgb(0x9B, 0x59, 0xB6), // Purple
+                Color::Rgb(0xE7, 0x4C, 0x3C), // Coral red
+                Color::Rgb(0xF3, 0x9C, 0x12), // Orange
+                Color::Rgb(0x1A, 0xBC, 0x9C), // Turquoise
+                Color::Rgb(0x34, 0x98, 0xDB), // Sky blue
+                Color::Rgb(0x95, 0xA5, 0xA6), // Gray-blue
+                Color::Rgb(0xE6, 0x7E, 0x22), // Dark orange
+                Color::Rgb(0x8E, 0x44, 0xAD), // Deep purple
+                Color::Rgb(0x16, 0xA0, 0x85), // Teal
+                Color::Rgb(0x27, 0xAE, 0x60), // Emerald
+                Color::Rgb(0x29, 0x80, 0xB9), // Steel blue
             ],
             // Cyan for selected background
             selected_bg: Color::Cyan,

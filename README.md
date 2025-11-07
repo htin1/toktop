@@ -1,5 +1,20 @@
 <div align="center">
-<img src="./assets/toktop-rainbow.png">
+
+<pre>
+   __                __          __                         
+  |  \              |  \        |  \                        
+ _| $$_     ______  | $$   __  _| $$_     ______    ______  
+|   $$ \   /      \ | $$  /  \|   $$ \   /      \  /      \ 
+ \$$$$$$  |  $$$$$$\| $$_/  $$ \$$$$$$  |  $$$$$$\|  $$$$$$\
+  | $$ __ | $$  | $$| $$   $$   | $$ __ | $$  | $$| $$  | $$
+  | $$|  \| $$__/ $$| $$$$$$\   | $$|  \| $$__/ $$| $$__/ $$
+   \$$  $$ \$$    $$| $$  \$$\   \$$  $$ \$$    $$| $$    $$
+    \$$$$   \$$$$$$  \$$   \$$    \$$$$   \$$$$$$ | $$$$$$$ 
+                                                  | $$      
+                                                  | $$      
+                                                   \$$      
+</pre>
+
 <em>htop but for llm tokens</em>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

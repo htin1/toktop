@@ -1,6 +1,19 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+#[derive(Deserialize)]
+pub struct AnthropicApiKeyResponse {
+    #[allow(dead_code)]
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub status: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub created_at: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct DailyData {
     pub date: DateTime<Utc>,
@@ -13,7 +26,6 @@ pub struct DailyUsageData {
     pub date: DateTime<Utc>,
     pub input_tokens: u64,
     pub output_tokens: u64,
-    #[allow(dead_code)]
     pub api_key_id: Option<String>,
     pub model: Option<String>,
 }
@@ -24,6 +36,8 @@ pub struct UsageData {
     pub anthropic: Vec<DailyData>,
     pub anthropic_usage: Vec<DailyUsageData>,
     pub openai_usage: Vec<DailyUsageData>,
+    pub anthropic_api_key_names: std::collections::HashMap<String, String>,
+    pub openai_api_key_names: std::collections::HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -121,7 +135,6 @@ pub struct AnthropicUsageItem {
     #[allow(dead_code)]
     pub server_tool_use: ServerToolUse,
     #[serde(default)]
-    #[allow(dead_code)]
     pub api_key_id: Option<String>,
     #[serde(default)]
     #[allow(dead_code)]
@@ -208,7 +221,6 @@ pub struct OpenAIUsageResult {
     #[allow(dead_code)]
     pub user_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
     pub api_key_id: Option<String>,
 }
 
@@ -219,6 +231,8 @@ impl UsageData {
             anthropic: Vec::new(),
             anthropic_usage: Vec::new(),
             openai_usage: Vec::new(),
+            anthropic_api_key_names: std::collections::HashMap::new(),
+            openai_api_key_names: std::collections::HashMap::new(),
         }
     }
     pub fn openai_total_cost(&self) -> f64 {
