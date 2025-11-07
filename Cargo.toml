@@ -2,6 +2,12 @@
 name = "toktop"
 version = "0.1.0"
 edition = "2021"
+description = "A terminal-based LLM cost and usage monitor"
+license = "MIT"
+repository = "https://github.com/htin1/toktop"
+authors = ["htin1"]
+keywords = ["llm", "monitor", "cost", "usage", "terminal", "tui"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 ratatui = "0.27"
