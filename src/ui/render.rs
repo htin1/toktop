@@ -6,11 +6,11 @@ use ratatui::{
 };
 
 pub fn render(f: &mut Frame, app: &App) {
-    // Top 20% for header panel (menu + view + summary), remaining space minus footer for chart, footer at bottom
+    // Top % for header panel (menu + view + summary), remaining space minus footer for chart, footer at bottom
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(20),
+            Constraint::Percentage(25),
             Constraint::Min(0),
             Constraint::Length(3),
         ])

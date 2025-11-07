@@ -14,21 +14,31 @@ use ratatui::{
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
+
+    let data = match provider {
+        Provider::OpenAI => &app.data.openai,
+        Provider::Anthropic => &app.data.anthropic,
+    };
+
+    let has_data = !data.is_empty();
+    
+    if app.loading || !has_data {
+        let mut text = vec![];
+        text.extend(banner::render_animated_banner(app, &palette));
+        f.render_widget(
+            Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Summary")),
+            area,
+        );
+        return;
+    }
+
     let total = match provider {
         Provider::OpenAI => app.data.openai_total_cost(),
         Provider::Anthropic => app.data.anthropic_total_cost(),
     };
     let avg_per_day = total / 7.0;
 
-    // Calculate date range metadata
-    let data = match provider {
-        Provider::OpenAI => &app.data.openai,
-        Provider::Anthropic => &app.data.anthropic,
-    };
-
-    let date_range = if data.is_empty() {
-        "No data".to_string()
-    } else {
+    let date_range = {
         let min_date = data.iter().map(|d| d.date).min().unwrap_or(Utc::now());
         let max_date = data.iter().map(|d| d.date).max().unwrap_or(Utc::now());
         format!(
@@ -38,7 +48,6 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         )
     };
 
-    // Get usage statistics for both providers
     let (total_input_tokens, total_output_tokens) = match provider {
         Provider::Anthropic => (
             app.data.anthropic_total_input_tokens(),
@@ -51,24 +60,6 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let mut text = vec![];
-
-    // Check if we have data for the current provider
-    let has_data = !data.is_empty();
-    
-    // Render animated ASCII art when loading OR when waiting for API key (no data)
-    if app.loading || !has_data {
-        text.extend(banner::render_animated_banner(app, &palette));
-    } else {
-        text.push(Line::from(vec![
-            Span::styled(
-                "Toktop",
-                Style::default()
-                    .fg(palette.primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" - Monitor your LLM API spending"),
-        ]));
-    }
 
     text.push(Line::from(""));
     text.push(Line::from(vec![

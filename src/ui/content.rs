@@ -79,10 +79,7 @@ fn render_cost_view(
             f,
             area,
             &title,
-            &format!(
-                "Connect an {} Admin API key to view this dashboard.",
-                provider.label()
-            ),
+            ""
         );
         return;
     }
@@ -159,10 +156,7 @@ fn render_usage_view(
             f,
             area,
             &title,
-            &format!(
-                "Connect an {} Admin API key to view this dashboard.",
-                provider.label()
-            ),
+            ""
         );
         return;
     }

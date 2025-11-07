@@ -26,21 +26,21 @@ fn create_centered_popup(area: Rect, width: u16, height: u16) -> Rect {
     Rect::new(x, y, width, height)
 }
 
-fn create_popup_block(title: &str, palette: ColorPalette) -> Block {
+fn create_popup_block(title: &str, primary_color: Color) -> Block {
     Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(palette.primary))
+        .border_style(Style::default().fg(primary_color))
         .title(title)
         .title_style(
             Style::default()
-                .fg(palette.primary)
+                .fg(primary_color)
                 .add_modifier(Modifier::BOLD),
         )
 }
 
 fn render_loading_popup(f: &mut Frame, area: Rect, palette: ColorPalette) {
     let popup_area = create_centered_popup(area, 40, 5);
-    let block = create_popup_block(" Loading ", palette);
+    let block = create_popup_block(" Loading ", palette.primary);
     let inner = block.inner(popup_area);
 
     f.render_widget(block, popup_area);
@@ -59,10 +59,22 @@ fn render_api_key_popup(
     input_text: &str,
 ) {
     let palette = ColorPalette::for_provider(provider);
-    let popup_area = create_centered_popup(area, 60, 6);
+    let popup_area = create_centered_popup(area, 80, 10);
     let title = format!(" Enter {} API Key ", provider.label());
-    let block = create_popup_block(&title, palette);
+    let block = create_popup_block(&title, palette.primary);
     let inner = block.inner(popup_area);
+
+    // Provider-specific hints
+    let (key_url, env_var_name) = match provider {
+        crate::app::Provider::OpenAI => (
+            "https://platform.openai.com/settings/organization/admin-keys",
+            "OPENAI_ADMIN_KEY",
+        ),
+        crate::app::Provider::Anthropic => (
+            "https://console.anthropic.com/settings/admin-keys",
+            "ANTHROPIC_ADMIN_KEY",
+        ),
+    };
 
     f.render_widget(block, popup_area);
     f.render_widget(
@@ -71,13 +83,43 @@ fn render_api_key_popup(
             Line::from(Span::styled(
                 format!("{}_", input_text),
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(palette.primary)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Get your admin key from: ",
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(
+                    key_url,
+                    Style::default()
+                        .fg(palette.accent)
+                        .add_modifier(Modifier::UNDERLINED),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "You can also set ",
+                    Style::default().fg(Color::White),
+                ),
+                Span::styled(
+                    format!("${}", env_var_name),
+                    Style::default()
+                        .fg(palette.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " as environment variable",
+                    Style::default().fg(Color::White),
+                ),
+            ]),
+            Line::from(""),
             Line::from(Span::styled(
                 "Press Enter to submit, Esc to cancel",
-                Style::default().fg(Color::White),
+                Style::default().fg(palette.primary),
             )),
         ])
         .alignment(Alignment::Left),

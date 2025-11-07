@@ -36,8 +36,6 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" Cost ", cost_style),
         Span::raw(" "),
         Span::styled(" Usage ", usage_style),
-        Span::raw(" "),
-        Span::styled("(Tab to switch)", Style::default().fg(Color::DarkGray)),
     ])];
 
     f.render_widget(
