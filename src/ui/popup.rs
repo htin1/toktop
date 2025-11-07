@@ -10,7 +10,7 @@ use ratatui::{
 
 pub fn render(f: &mut Frame, app: &App) {
     let area = f.size();
-    
+
     if let Some(popup_provider) = app.api_key_popup_active {
         render_api_key_popup(f, area, popup_provider, &app.api_key_input);
     } else if app.loading {
@@ -31,7 +31,11 @@ fn create_popup_block(title: &str, palette: ColorPalette) -> Block {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(palette.primary))
         .title(title)
-        .title_style(Style::default().fg(palette.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(palette.primary)
+                .add_modifier(Modifier::BOLD),
+        )
 }
 
 fn render_loading_popup(f: &mut Frame, area: Rect, palette: ColorPalette) {
@@ -48,7 +52,12 @@ fn render_loading_popup(f: &mut Frame, area: Rect, palette: ColorPalette) {
     );
 }
 
-fn render_api_key_popup(f: &mut Frame, area: Rect, provider: crate::app::Provider, input_text: &str) {
+fn render_api_key_popup(
+    f: &mut Frame,
+    area: Rect,
+    provider: crate::app::Provider,
+    input_text: &str,
+) {
     let palette = ColorPalette::for_provider(provider);
     let popup_area = create_centered_popup(area, 60, 6);
     let title = format!(" Enter {} API Key ", provider.label());
@@ -61,7 +70,9 @@ fn render_api_key_popup(f: &mut Frame, area: Rect, provider: crate::app::Provide
             Line::from(""),
             Line::from(Span::styled(
                 format!("{}_", input_text),
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from(Span::styled(
@@ -73,4 +84,3 @@ fn render_api_key_popup(f: &mut Frame, area: Rect, provider: crate::app::Provide
         inner,
     );
 }
-

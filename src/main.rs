@@ -57,7 +57,7 @@ async fn main() -> io::Result<()> {
                 if key.kind == KeyEventKind::Press {
                     let mut app_lock = app.lock().await;
                     let popup_active = app_lock.api_key_popup_active.is_some();
-                    
+
                     match key.code {
                         KeyCode::Up | KeyCode::Down => {
                             let delta = if key.code == KeyCode::Up { -1 } else { 1 };
@@ -113,16 +113,16 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
         let (provider, openai_client, anthropic_client, should_fetch) = {
             let mut app_lock = app.lock().await;
             let provider = app_lock.current_provider();
-            
+
             if !app_lock.has_client(provider) {
                 return;
             }
-            
+
             let data_exists = match provider {
                 app::Provider::OpenAI => !app_lock.data.openai.is_empty(),
                 app::Provider::Anthropic => !app_lock.data.anthropic.is_empty(),
             };
-            
+
             let should_fetch = !data_exists || force_refresh;
             if should_fetch {
                 app_lock.loading = true;
@@ -131,7 +131,7 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
                     app::Provider::Anthropic => app_lock.anthropic_error = None,
                 }
             }
-            
+
             (
                 provider,
                 app_lock.openai_client.clone(),

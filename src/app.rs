@@ -205,11 +205,9 @@ pub async fn fetch_usage_data(
         Provider::OpenAI => {
             if let Some(client) = openai_client {
                 // Fetch cost and usage data in parallel
-                let (costs_result, usage_result) = tokio::join!(
-                    client.fetch_costs(),
-                    client.fetch_usage(start_time),
-                );
-                
+                let (costs_result, usage_result) =
+                    tokio::join!(client.fetch_costs(), client.fetch_usage(start_time),);
+
                 // Process cost data
                 match costs_result {
                     Ok(buckets) => {
@@ -235,7 +233,7 @@ pub async fn fetch_usage_data(
                         openai_error = Some(e.to_string());
                     }
                 }
-                
+
                 // Process usage data
                 match usage_result {
                     Ok(buckets) => {
@@ -246,14 +244,14 @@ pub async fn fetch_usage_data(
                                 .and_hms_opt(0, 0, 0)
                                 .unwrap();
                             let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
-                            
+
                             for result in bucket.results {
                                 // For completions: input_tokens and output_tokens are present
                                 // For embeddings: only input_tokens is present (no output_tokens)
                                 // For images: images field is present (no tokens)
                                 let input_tokens = result.input_tokens;
                                 let output_tokens = result.output_tokens;
-                                
+
                                 // Only add if there are actual tokens (skip images which don't have tokens)
                                 if input_tokens > 0 || output_tokens > 0 {
                                     usage_data.openai_usage.push(DailyUsageData {
@@ -287,12 +285,14 @@ pub async fn fetch_usage_data(
                     client.fetch_costs(start_time),
                     client.fetch_usage(start_time),
                 );
-                
+
                 // Process cost data
                 match costs_result {
                     Ok(buckets) => {
                         for bucket in buckets {
-                            if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
+                            if let Ok(bucket_start) =
+                                DateTime::parse_from_rfc3339(&bucket.starting_at)
+                            {
                                 let date = bucket_start.with_timezone(&Utc);
                                 // Create a separate entry for each result (grouped by model)
                                 // Amount is in cents (lowest currency units), so divide by 100
@@ -316,12 +316,14 @@ pub async fn fetch_usage_data(
                         anthropic_error = Some(e.to_string());
                     }
                 }
-                
+
                 // Process usage data
                 match usage_result {
                     Ok(buckets) => {
                         for bucket in buckets {
-                            if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
+                            if let Ok(bucket_start) =
+                                DateTime::parse_from_rfc3339(&bucket.starting_at)
+                            {
                                 let date = bucket_start.with_timezone(&Utc);
                                 for result in bucket.results {
                                     // Calculate total input tokens
@@ -329,7 +331,7 @@ pub async fn fetch_usage_data(
                                         + result.cache_creation.ephemeral_1h_input_tokens
                                         + result.cache_creation.ephemeral_5m_input_tokens
                                         + result.cache_read_input_tokens;
-                                    
+
                                     if input_tokens > 0 || result.output_tokens > 0 {
                                         usage_data.anthropic_usage.push(DailyUsageData {
                                             date,
@@ -350,7 +352,8 @@ pub async fn fetch_usage_data(
                             anthropic_error = Some(format!("Usage fetch failed: {}", e));
                         } else {
                             let cost_err = anthropic_error.clone().unwrap();
-                            anthropic_error = Some(format!("{}; Usage fetch failed: {}", cost_err, e));
+                            anthropic_error =
+                                Some(format!("{}; Usage fetch failed: {}", cost_err, e));
                         }
                     }
                 }
@@ -364,4 +367,3 @@ pub async fn fetch_usage_data(
         anthropic_error,
     }
 }
-

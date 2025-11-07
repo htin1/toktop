@@ -18,13 +18,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Provider::Anthropic => app.data.anthropic_total_cost(),
     };
     let avg_per_day = total / 7.0;
-    
+
     // Calculate date range metadata
     let data = match provider {
         Provider::OpenAI => &app.data.openai,
         Provider::Anthropic => &app.data.anthropic,
     };
-    
+
     let date_range = if data.is_empty() {
         "No data".to_string()
     } else {
@@ -36,17 +36,19 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             max_date.format("%m/%d")
         )
     };
-    
+
     // Get usage statistics for both providers
     let (total_input_tokens, total_output_tokens) = match provider {
-        Provider::Anthropic => {
-            (app.data.anthropic_total_input_tokens(), app.data.anthropic_total_output_tokens())
-        }
-        Provider::OpenAI => {
-            (app.data.openai_total_input_tokens(), app.data.openai_total_output_tokens())
-        }
+        Provider::Anthropic => (
+            app.data.anthropic_total_input_tokens(),
+            app.data.anthropic_total_output_tokens(),
+        ),
+        Provider::OpenAI => (
+            app.data.openai_total_input_tokens(),
+            app.data.openai_total_output_tokens(),
+        ),
     };
-    
+
     let mut text = vec![
         Line::from(vec![
             Span::styled(
@@ -77,7 +79,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             ),
         ]),
     ];
-    
+
     // Add usage statistics for both providers
     if total_input_tokens > 0 || total_output_tokens > 0 {
         text.push(Line::from(""));
@@ -98,20 +100,15 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             Span::raw(format_tokens(total_output_tokens)),
         ]));
     }
-    
+
     text.push(Line::from(""));
     text.push(Line::from(vec![
         Span::styled("Date Range: ", Style::default().fg(Color::Gray)),
         Span::raw(date_range),
     ]));
-    
+
     f.render_widget(
-        Paragraph::new(text).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Summary"),
-        ),
+        Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Summary")),
         area,
     );
 }
-

@@ -22,10 +22,7 @@ impl AnthropicClient {
         }
     }
 
-    pub async fn fetch_costs(
-        &self,
-        start_time: DateTime<Utc>,
-    ) -> Result<Vec<AnthropicCostBucket>> {
+    pub async fn fetch_costs(&self, start_time: DateTime<Utc>) -> Result<Vec<AnthropicCostBucket>> {
         let start = start_time.format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let base_url = format!("{}/cost_report", self.base_url);
         let mut all_data = Vec::new();
@@ -45,7 +42,10 @@ impl AnthropicClient {
             }
             let response = req.send().await.context("Failed to send request")?;
             let status = response.status();
-            let text = response.text().await.context("Failed to read response body")?;
+            let text = response
+                .text()
+                .await
+                .context("Failed to read response body")?;
             if !status.is_success() {
                 return Err(anyhow::anyhow!("API error: {} - {}", status, text));
             }
@@ -87,7 +87,10 @@ impl AnthropicClient {
             }
             let response = req.send().await.context("Failed to send request")?;
             let status = response.status();
-            let text = response.text().await.context("Failed to read response body")?;
+            let text = response
+                .text()
+                .await
+                .context("Failed to read response body")?;
             if !status.is_success() {
                 return Err(anyhow::anyhow!("API error: {} - {}", status, text));
             }

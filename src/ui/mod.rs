@@ -6,5 +6,6 @@ mod menu;
 mod popup;
 mod render;
 mod utils;
+mod view;
 
 pub use render::render;

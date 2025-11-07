@@ -66,7 +66,7 @@ impl OpenAIClient {
     ) -> Result<Vec<crate::models::OpenAIUsageBucket>> {
         let mut all_buckets = Vec::new();
         let mut page: Option<String> = None;
-        
+
         loop {
             let mut url = format!(
                 "{}/usage/{}?start_time={}&interval=1d&group_by=model",
@@ -75,7 +75,7 @@ impl OpenAIClient {
             if let Some(ref p) = page {
                 url = format!("{}&page={}", url, p);
             }
-            
+
             let response = self
                 .client
                 .get(&url)
@@ -83,12 +83,17 @@ impl OpenAIClient {
                 .send()
                 .await
                 .context(format!("Failed to fetch {} usage", endpoint))?;
-            
+
             let status = response.status();
             let text = response.text().await.context("Failed to read response")?;
-            
+
             if !status.is_success() {
-                return Err(anyhow::anyhow!("API error for {}: {} - {}", endpoint, status, text));
+                return Err(anyhow::anyhow!(
+                    "API error for {}: {} - {}",
+                    endpoint,
+                    status,
+                    text
+                ));
             }
 
             let resp: OpenAIUsageResponse = serde_json::from_str(&text).context(format!(
@@ -96,7 +101,7 @@ impl OpenAIClient {
                 endpoint,
                 text.chars().take(200).collect::<String>()
             ))?;
-            
+
             all_buckets.extend(resp.data);
             if !resp.has_more {
                 break;
@@ -121,7 +126,7 @@ impl OpenAIClient {
         );
 
         let mut all_buckets = Vec::new();
-        
+
         // Collect results, ignoring errors for individual endpoints
         if let Ok(mut buckets) = completions_result {
             all_buckets.append(&mut buckets);

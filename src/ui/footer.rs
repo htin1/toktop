@@ -11,7 +11,7 @@ use ratatui::{
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
-    
+
     f.render_widget(
         Paragraph::new(vec![Line::from(vec![
             Span::raw("Commands: "),
@@ -29,4 +29,3 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         area,
     );
 }
-

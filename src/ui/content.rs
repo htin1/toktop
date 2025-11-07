@@ -44,64 +44,21 @@ fn render_empty_state(f: &mut Frame, area: Rect, title: &str, message: &str) {
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
-    
-    // Split area: tabs at top, content below
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(0)])
-        .split(area);
-    
-    // Render tabs
-    render_tabs(f, app, chunks[0], &palette);
-    
+
     // Render the active view
     match app.current_view {
-        View::Cost => render_cost_view(f, app, chunks[1], provider, &palette),
-        View::Usage => render_usage_view(f, app, chunks[1], provider, &palette),
+        View::Cost => render_cost_view(f, app, area, provider, &palette),
+        View::Usage => render_usage_view(f, app, area, provider, &palette),
     }
 }
 
-fn render_tabs(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
-    let cost_active = app.current_view == View::Cost;
-    let usage_active = app.current_view == View::Usage;
-    
-    let cost_style = if cost_active {
-        Style::default()
-            .fg(palette.primary)
-            .bg(Color::DarkGray)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Gray)
-    };
-    
-    let usage_style = if usage_active {
-        Style::default()
-            .fg(palette.primary)
-            .bg(Color::DarkGray)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Gray)
-    };
-    
-    let tabs = vec![
-        Line::from(vec![
-            Span::styled(" Cost ", cost_style),
-            Span::raw(" "),
-            Span::styled(" Usage ", usage_style),
-            Span::raw(" "),
-            Span::styled("(Tab to switch)", Style::default().fg(Color::DarkGray)),
-        ]),
-    ];
-    
-    f.render_widget(
-        Paragraph::new(tabs)
-            .block(Block::default().borders(Borders::ALL).title("View"))
-            .alignment(Alignment::Left),
-        area,
-    );
-}
-
-fn render_cost_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, palette: &ColorPalette) {
+fn render_cost_view(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    provider: Provider,
+    palette: &ColorPalette,
+) {
     let has_client = app.has_client(provider);
     let error = app.error_for_provider(provider);
     let title = format!("{} - Daily Cost by Model", provider.label());
@@ -122,7 +79,10 @@ fn render_cost_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, pa
             f,
             area,
             &title,
-            &format!("Connect an {} Admin API key to view this dashboard.", provider.label()),
+            &format!(
+                "Connect an {} Admin API key to view this dashboard.",
+                provider.label()
+            ),
         );
         return;
     }
@@ -155,21 +115,30 @@ fn render_cost_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, pa
             f,
             area,
             &title,
-            &format!("No {} Cost data available for the selected window.", provider.label()),
+            &format!(
+                "No {} Cost data available for the selected window.",
+                provider.label()
+            ),
         );
         return;
     }
 
     // Get usage data to create unified color mapping
     let usage_data = app.usage_data_for_provider(provider);
-    
+
     // Create unified color mapping for models across both charts
     let unified_colors = create_unified_color_mapping(data, usage_data, palette);
-    
+
     render_cost_chart(f, data, area, &title, provider, &unified_colors);
 }
 
-fn render_usage_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, palette: &ColorPalette) {
+fn render_usage_view(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    provider: Provider,
+    palette: &ColorPalette,
+) {
     let has_client = app.has_client(provider);
     let error = app.error_for_provider(provider);
     let title = format!("{} - Daily Token Usage by Model", provider.label());
@@ -190,7 +159,10 @@ fn render_usage_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, p
             f,
             area,
             &title,
-            &format!("Connect an {} Admin API key to view this dashboard.", provider.label()),
+            &format!(
+                "Connect an {} Admin API key to view this dashboard.",
+                provider.label()
+            ),
         );
         return;
     }
@@ -223,21 +195,21 @@ fn render_usage_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, p
             f,
             area,
             &title,
-            &format!("No {} Usage data available for the selected window.", provider.label()),
+            &format!(
+                "No {} Usage data available for the selected window.",
+                provider.label()
+            ),
         );
         return;
     }
 
     // Get cost data to create unified color mapping
     let cost_data = app.data_for_provider(provider);
-    
+
     // Create unified color mapping for models across both charts
-    let unified_colors = create_unified_color_mapping(
-        cost_data.unwrap_or(&[]),
-        Some(usage_data),
-        palette,
-    );
-    
+    let unified_colors =
+        create_unified_color_mapping(cost_data.unwrap_or(&[]), Some(usage_data), palette);
+
     render_usage_chart(f, app, area, provider, &unified_colors);
 }
 
@@ -247,7 +219,7 @@ fn create_unified_color_mapping(
     palette: &ColorPalette,
 ) -> HashMap<String, Color> {
     let mut all_items = std::collections::HashSet::new();
-    
+
     // Collect items from cost data
     for d in cost_data {
         if let Some(ref line_item) = d.line_item {
@@ -257,7 +229,7 @@ fn create_unified_color_mapping(
             }
         }
     }
-    
+
     // Collect models from usage data
     if let Some(usage) = usage_data {
         for d in usage {
@@ -269,11 +241,11 @@ fn create_unified_color_mapping(
             }
         }
     }
-    
+
     // Sort items for consistent color assignment
     let mut sorted_items: Vec<String> = all_items.into_iter().collect();
     sorted_items.sort();
-    
+
     // Assign colors based on sorted order
     sorted_items
         .iter()
@@ -341,13 +313,7 @@ fn render_cost_legend(
 ) {
     let mut legend_items: Vec<String> = items
         .iter()
-        .filter(|item| {
-            item_totals
-                .get(*item)
-                .copied()
-                .unwrap_or(0.0)
-                > COST_THRESHOLD_FOR_LEGEND
-        })
+        .filter(|item| item_totals.get(*item).copied().unwrap_or(0.0) > COST_THRESHOLD_FOR_LEGEND)
         .cloned()
         .collect();
 
@@ -394,14 +360,12 @@ fn render_stacked_bar_segment(
     text_color: Color,
 ) {
     f.render_widget(
-        Paragraph::new(text)
-            .alignment(Alignment::Center)
-            .style(
-                Style::default()
-                    .fg(text_color)
-                    .bg(color)
-                    .add_modifier(Modifier::BOLD),
-            ),
+        Paragraph::new(text).alignment(Alignment::Center).style(
+            Style::default()
+                .fg(text_color)
+                .bg(color)
+                .add_modifier(Modifier::BOLD),
+        ),
         area,
     );
 }
@@ -626,7 +590,7 @@ fn render_usage_chart(
 ) {
     let palette = ColorPalette::for_provider(provider);
     let title = format!("{} - Daily Token Usage by Model", provider.label());
-    
+
     let usage_data = match app.usage_data_for_provider(provider) {
         Some(data) => data,
         None => {
@@ -652,7 +616,11 @@ fn render_usage_chart(
     for model in &chart_data.models {
         if !model_colors.contains_key(model) {
             // Fallback: assign color based on position in chart_data.models
-            let index = chart_data.models.iter().position(|m| m == model).unwrap_or(0);
+            let index = chart_data
+                .models
+                .iter()
+                .position(|m| m == model)
+                .unwrap_or(0);
             model_colors.insert(
                 model.clone(),
                 palette.chart_colors[index % palette.chart_colors.len()],
@@ -721,9 +689,10 @@ fn render_usage_chart(
         for model in &chart_data.models {
             if let Some(&(input_tokens, output_tokens)) = model_tokens.get(model) {
                 let total_model_tokens = input_tokens + output_tokens;
-                
+
                 if total_model_tokens > 0 {
-                    let segment_width = ((total_model_tokens as f64 / max_total as f64) * bar_width as f64) as u16;
+                    let segment_width =
+                        ((total_model_tokens as f64 / max_total as f64) * bar_width as f64) as u16;
 
                     if segment_width > 0 {
                         let color = model_colors.get(model).copied().unwrap_or(Color::White);
@@ -755,4 +724,3 @@ fn render_usage_chart(
         );
     }
 }
-
