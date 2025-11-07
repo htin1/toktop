@@ -1,4 +1,4 @@
-use crate::app::{App, Provider};
+use crate::app::{App, Provider, View};
 use crate::models::{DailyData, DailyUsageData};
 use crate::ui::colors::ColorPalette;
 use crate::ui::utils::format_tokens;
@@ -44,6 +44,64 @@ fn render_empty_state(f: &mut Frame, area: Rect, title: &str, message: &str) {
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
+    
+    // Split area: tabs at top, content below
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
+        .split(area);
+    
+    // Render tabs
+    render_tabs(f, app, chunks[0], &palette);
+    
+    // Render the active view
+    match app.current_view {
+        View::Cost => render_cost_view(f, app, chunks[1], provider, &palette),
+        View::Usage => render_usage_view(f, app, chunks[1], provider, &palette),
+    }
+}
+
+fn render_tabs(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
+    let cost_active = app.current_view == View::Cost;
+    let usage_active = app.current_view == View::Usage;
+    
+    let cost_style = if cost_active {
+        Style::default()
+            .fg(palette.primary)
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
+    
+    let usage_style = if usage_active {
+        Style::default()
+            .fg(palette.primary)
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
+    
+    let tabs = vec![
+        Line::from(vec![
+            Span::styled(" Cost ", cost_style),
+            Span::raw(" "),
+            Span::styled(" Usage ", usage_style),
+            Span::raw(" "),
+            Span::styled("(Tab to switch)", Style::default().fg(Color::DarkGray)),
+        ]),
+    ];
+    
+    f.render_widget(
+        Paragraph::new(tabs)
+            .block(Block::default().borders(Borders::ALL).title("View"))
+            .alignment(Alignment::Left),
+        area,
+    );
+}
+
+fn render_cost_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, palette: &ColorPalette) {
     let has_client = app.has_client(provider);
     let error = app.error_for_provider(provider);
     let title = format!("{} - Daily Cost by Model", provider.label());
@@ -102,22 +160,85 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // Split area vertically: cost chart top, usage chart bottom
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-
     // Get usage data to create unified color mapping
     let usage_data = app.usage_data_for_provider(provider);
     
     // Create unified color mapping for models across both charts
-    let unified_colors = create_unified_color_mapping(data, usage_data, &palette);
+    let unified_colors = create_unified_color_mapping(data, usage_data, palette);
     
-    render_cost_chart(f, data, chunks[0], &title, provider, &unified_colors);
+    render_cost_chart(f, data, area, &title, provider, &unified_colors);
+}
+
+fn render_usage_view(f: &mut Frame, app: &App, area: Rect, provider: Provider, palette: &ColorPalette) {
+    let has_client = app.has_client(provider);
+    let error = app.error_for_provider(provider);
+    let title = format!("{} - Daily Token Usage by Model", provider.label());
+
+    if let Some(err) = error {
+        render_error_message(
+            f,
+            area,
+            &title,
+            &format!("Error loading {} Usage data: {}", provider.label(), err),
+            palette.error,
+        );
+        return;
+    }
+
+    if !has_client {
+        render_empty_state(
+            f,
+            area,
+            &title,
+            &format!("Connect an {} Admin API key to view this dashboard.", provider.label()),
+        );
+        return;
+    }
+
+    let usage_data = match app.usage_data_for_provider(provider) {
+        Some(values) => values,
+        None => {
+            render_empty_state(
+                f,
+                area,
+                &title,
+                &format!("{} Usage data is not wired up yet.", provider.label()),
+            );
+            return;
+        }
+    };
+
+    if usage_data.is_empty() && app.loading {
+        render_empty_state(
+            f,
+            area,
+            &title,
+            &format!("Loading {} Usage data...", provider.label()),
+        );
+        return;
+    }
+
+    if usage_data.is_empty() {
+        render_empty_state(
+            f,
+            area,
+            &title,
+            &format!("No {} Usage data available for the selected window.", provider.label()),
+        );
+        return;
+    }
+
+    // Get cost data to create unified color mapping
+    let cost_data = app.data_for_provider(provider);
     
-    // Render usage chart for both providers
-    render_usage_chart(f, app, chunks[1], provider, &unified_colors);
+    // Create unified color mapping for models across both charts
+    let unified_colors = create_unified_color_mapping(
+        cost_data.unwrap_or(&[]),
+        Some(usage_data),
+        palette,
+    );
+    
+    render_usage_chart(f, app, area, provider, &unified_colors);
 }
 
 fn create_unified_color_mapping(

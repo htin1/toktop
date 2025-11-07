@@ -99,6 +99,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ]));
     }
     
+    text.push(Line::from(""));
     text.push(Line::from(vec![
         Span::styled("Date Range: ", Style::default().fg(Color::Gray)),
         Span::raw(date_range),

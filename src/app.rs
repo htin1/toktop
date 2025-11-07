@@ -18,6 +18,12 @@ impl Provider {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    Cost,
+    Usage,
+}
+
 pub struct FetchOutcome {
     pub data: UsageData,
     pub openai_error: Option<String>,
@@ -31,6 +37,7 @@ pub struct App {
     pub loading: bool,
     pub selected_provider: Provider,
     pub menu_cursor: usize,
+    pub current_view: View,
     pub openai_error: Option<String>,
     pub anthropic_error: Option<String>,
 }
@@ -44,9 +51,17 @@ impl App {
             loading: false,
             selected_provider: Provider::OpenAI,
             menu_cursor: 0,
+            current_view: View::Cost,
             openai_error: None,
             anthropic_error: None,
         }
+    }
+
+    pub fn toggle_view(&mut self) {
+        self.current_view = match self.current_view {
+            View::Cost => View::Usage,
+            View::Usage => View::Cost,
+        };
     }
 
     pub fn set_openai_client(&mut self, api_key: String) {
@@ -133,11 +148,17 @@ pub async fn fetch_usage_data(
     let mut openai_error = None;
     let mut anthropic_error = None;
 
+    // Set start_time to start of day (midnight UTC) 7 days ago
+    // This ensures we get exactly 7 full days of data
+    let now = Utc::now();
+    let start_time = (now.date_naive() - Duration::days(7))
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
+
     match provider {
         Provider::OpenAI => {
             if let Some(client) = openai_client {
-                let start_time = Utc::now() - Duration::days(7);
-                
                 // Fetch cost and usage data in parallel
                 let (costs_result, usage_result) = tokio::join!(
                     client.fetch_costs(),
@@ -216,8 +237,6 @@ pub async fn fetch_usage_data(
         }
         Provider::Anthropic => {
             if let Some(client) = anthropic_client {
-                let start_time = Utc::now() - Duration::days(7);
-                
                 // Fetch cost and usage data in parallel
                 let (costs_result, usage_result) = tokio::join!(
                     client.fetch_costs(start_time),

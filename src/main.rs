@@ -84,6 +84,9 @@ async fn main() -> io::Result<()> {
                                 spawn_fetch_task(app.clone(), false);
                             }
                         }
+                        KeyCode::Tab => {
+                            app_lock.toggle_view();
+                        }
                         KeyCode::Char('q') | KeyCode::Char('Q') => break,
                         _ => {}
                     }
