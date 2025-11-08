@@ -16,8 +16,9 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let palette = ColorPalette::for_provider(provider);
 
     let info = app.provider_info(provider);
-    let data = &info.cost_data;
-    let has_data = !data.is_empty();
+    let cost_data = &info.cost_data;
+    let usage_data = &info.usage_data;
+    let has_data = !cost_data.is_empty() || !usage_data.is_empty();
 
     if app.loading || !has_data {
         let mut text = vec![];
@@ -33,8 +34,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let avg_per_day = total / 7.0;
 
     let date_range = {
-        let min_date = data.iter().map(|d| d.date).min().unwrap_or(Utc::now());
-        let max_date = data.iter().map(|d| d.date).max().unwrap_or(Utc::now());
+        let dates: Vec<_> = if !cost_data.is_empty() {
+            cost_data.iter().map(|d| d.date).collect()
+        } else {
+            usage_data.iter().map(|d| d.date).collect()
+        };
+        let min_date = dates.iter().min().copied().unwrap_or(Utc::now());
+        let max_date = dates.iter().max().copied().unwrap_or(Utc::now());
         format!(
             "{} - {}",
             min_date.format("%m/%d"),

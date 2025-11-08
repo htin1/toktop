@@ -232,7 +232,9 @@ impl App {
 
     pub fn update_animation_frame(&mut self) {
         let provider = self.current_provider();
-        let has_data = !self.provider_info(provider).cost_data.is_empty();
+        let info = self.provider_info(provider);
+        // Stop animation if we have any data (cost or usage) and not loading
+        let has_data = !info.cost_data.is_empty() || !info.usage_data.is_empty();
         if self.loading || !has_data {
             self.animation_frame = self.animation_frame.wrapping_add(1);
         } else {
