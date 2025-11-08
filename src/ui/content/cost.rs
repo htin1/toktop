@@ -1,8 +1,9 @@
-use crate::app::{App, View};
+use crate::app::{App, Range, View};
 use crate::models::DailyData;
 use crate::provider::Provider;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
+use chrono::Duration;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -17,6 +18,16 @@ struct CostChartData {
     item_totals: HashMap<String, f64>,
     dates: Vec<String>,
     items: Vec<String>,
+}
+
+fn filter_cost_data_by_range(data: &[DailyData], range: Range) -> Vec<DailyData> {
+    let latest_date = match data.iter().map(|d| d.date).max() {
+        Some(date) => date,
+        None => return Vec::new(),
+    };
+    let span = range.days().saturating_sub(1);
+    let cutoff = latest_date - Duration::days(span);
+    data.iter().filter(|d| d.date >= cutoff).cloned().collect()
 }
 
 fn process_cost_data(data: &[DailyData]) -> CostChartData {
@@ -127,7 +138,7 @@ fn render_cost_chart(
         .daily_costs
         .values()
         .map(|models| models.values().sum::<f64>())
-        .fold(0.0f64, f64::max)
+        .fold(0.0, f64::max)
         .max(1.0);
 
     let block = Block::default().borders(Borders::ALL).title(title);
@@ -149,77 +160,129 @@ fn render_cost_chart(
     );
 
     let chart_area = chunks[0];
-    let total_height_per_bar = shared::BAR_HEIGHT + shared::BAR_SPACING;
+    if !render_vertical_cost_bars(f, chart_area, &chart_data, item_colors, max_total) {
+        shared::render_empty_state(
+            f,
+            chart_area,
+            "Chart",
+            "Not enough space to render cost chart",
+        );
+    }
+}
 
-    for (i, date) in chart_data.dates.iter().enumerate() {
-        let y_pos = chart_area.y + (i as u16 * total_height_per_bar);
+fn render_vertical_cost_bars(
+    f: &mut Frame,
+    chart_area: Rect,
+    chart_data: &CostChartData,
+    item_colors: &HashMap<String, Color>,
+    max_total: f64,
+) -> bool {
+    if chart_area.width == 0 || chart_area.height <= 1 || max_total <= 0.0 {
+        return false;
+    }
 
-        if y_pos + shared::BAR_HEIGHT > chart_area.y + chart_area.height {
-            break;
-        }
+    let label_height: u16 = 1;
+    let value_label_height: u16 = 1;
+    let bar_area_height = chart_area
+        .height
+        .saturating_sub(label_height)
+        .saturating_sub(value_label_height)
+        .saturating_sub(1);
+    if bar_area_height == 0 {
+        return false;
+    }
+    let bars_y = chart_area.y + value_label_height;
 
-        let model_costs = &chart_data.daily_costs[date];
+    let layout = match shared::vertical_bar_layout(chart_data.dates.len(), chart_area.width) {
+        Some(layout) => layout,
+        None => return false,
+    };
+
+    let end_index = layout.start_index + layout.visible_bars;
+
+    for (visible_idx, date_idx) in (layout.start_index..end_index).enumerate() {
+        let date = &chart_data.dates[date_idx];
+        let model_costs = match chart_data.daily_costs.get(date) {
+            Some(values) => values,
+            None => continue,
+        };
+
         let total_cost: f64 = model_costs.values().sum();
+        let bar_x = chart_area.x
+            + layout.offset
+            + (visible_idx as u16) * (layout.bar_width + layout.spacing);
 
-        // Date label
-        let date_label_area = Rect::new(
-            chart_area.x,
-            y_pos,
-            shared::DATE_LABEL_WIDTH,
-            shared::BAR_HEIGHT,
-        );
-        f.render_widget(
-            Paragraph::new(date.clone()).style(Style::default().fg(Color::White)),
-            date_label_area,
-        );
-
-        // Bar area
-        let bar_x = chart_area.x + shared::DATE_LABEL_OFFSET;
-        let bar_width = chart_area.width.saturating_sub(shared::BAR_PADDING);
-        let mut current_x = bar_x;
-
-        // Render stacked segments
+        let mut used_height = 0;
+        let mut top_segment_area: Option<Rect> = None;
         for item in &chart_data.items {
             if let Some(&cost) = model_costs.get(item) {
-                if cost > 0.0 {
-                    let segment_width = ((cost / max_total) * bar_width as f64) as u16;
-
-                    if segment_width > 0 {
-                        let color = item_colors.get(item).copied().unwrap_or(Color::White);
-                        let segment_area =
-                            Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
-
-                        let text = if segment_width > shared::MIN_SEGMENT_WIDTH_FOR_TEXT {
-                            format!("${:.0}", cost)
-                        } else {
-                            "".to_string()
-                        };
-
-                        shared::render_stacked_bar_segment(
-                            f,
-                            segment_area,
-                            &text,
-                            color,
-                            Color::Black,
-                        );
-                        current_x += segment_width;
-                    }
+                if cost <= 0.0 {
+                    continue;
                 }
+
+                let mut segment_height =
+                    ((cost / max_total) * bar_area_height as f64).round() as u16;
+                if segment_height == 0 {
+                    segment_height = 1;
+                }
+                let remaining = bar_area_height.saturating_sub(used_height);
+                if remaining == 0 {
+                    break;
+                }
+                if segment_height > remaining {
+                    segment_height = remaining;
+                }
+
+                let segment_y = bars_y + bar_area_height - used_height - segment_height;
+                let color = item_colors.get(item).copied().unwrap_or(Color::White);
+                let segment_area = Rect::new(bar_x, segment_y, layout.bar_width, segment_height);
+                shared::render_stacked_bar_segment(f, segment_area, "", color, Color::Black);
+                top_segment_area = Some(segment_area);
+                used_height += segment_height;
             }
         }
 
-        // Total label
-        let total_x = bar_x + bar_width + 2;
-        let total_area = Rect::new(total_x, y_pos, 14, shared::BAR_HEIGHT);
+        if used_height == 0 && bar_area_height > 0 {
+            let marker_y = bars_y + bar_area_height - 1;
+            shared::render_stacked_bar_segment(
+                f,
+                Rect::new(bar_x, marker_y, layout.bar_width, 1),
+                "",
+                Color::DarkGray,
+                Color::Black,
+            );
+        }
+
+        if total_cost > 0.0 {
+            if let Some(segment_area) = top_segment_area {
+                let label_y = segment_area.y - 1;
+                f.render_widget(
+                    Paragraph::new(format!("${:.0}", total_cost))
+                        .alignment(Alignment::Center)
+                        .style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    Rect::new(bar_x, label_y, layout.bar_width, 1),
+                );
+            }
+        }
+
+        let label_area = Rect::new(
+            bar_x,
+            bars_y + bar_area_height,
+            layout.bar_width,
+            label_height,
+        );
+        let label_text = shared::compact_date_label(date, layout.bar_width);
         f.render_widget(
-            Paragraph::new(format!("${:.0}", total_cost)).style(
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            total_area,
+            Paragraph::new(label_text).alignment(Alignment::Center),
+            label_area,
         );
     }
+
+    true
 }
 
 pub fn render_cost_view(
@@ -285,9 +348,23 @@ pub fn render_cost_view(
         return;
     }
 
-    // Create color mapping for cost chart items (always models)
-    let chart_data = process_cost_data(data);
+    let filtered_data = filter_cost_data_by_range(data, app.range);
+
+    if filtered_data.is_empty() {
+        shared::render_empty_state(
+            f,
+            area,
+            &title,
+            &format!(
+                "No {} Cost data available for the selected window.",
+                provider.label()
+            ),
+        );
+        return;
+    }
+
+    let chart_data = process_cost_data(&filtered_data);
     let item_colors = shared::create_color_mapping(&chart_data.items, palette);
 
-    render_cost_chart(f, data, area, &title, provider, &item_colors);
+    render_cost_chart(f, &filtered_data, area, &title, provider, &item_colors);
 }

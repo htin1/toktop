@@ -5,8 +5,7 @@ use crate::models::{
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
-use serde_json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 pub struct OpenAIClient {
@@ -25,13 +24,13 @@ impl OpenAIClient {
     }
 
     pub async fn fetch_costs(&self) -> Result<Vec<OpenAIBucket<OpenAICostResult>>> {
-        let start_time = Utc::now() - chrono::Duration::days(7);
+        let start_time = Utc::now() - chrono::Duration::days(30);
         let start_ts = start_time.timestamp();
         let mut all_buckets = Vec::new();
         let mut page: Option<String> = None;
         loop {
             let mut url = format!(
-                "{}/costs?start_time={}&group_by=line_item&limit=7",
+                "{}/costs?start_time={}&group_by=line_item&limit=30",
                 self.base_url, start_ts
             );
             if let Some(ref p) = page {
@@ -122,7 +121,6 @@ impl OpenAIClient {
     ) -> Result<Vec<crate::models::OpenAIUsageBucket>> {
         let start_ts = start_time.timestamp();
 
-        // Fetch from all three usage endpoints in parallel
         let (completions_result, embeddings_result, images_result) = tokio::join!(
             self.fetch_usage_endpoint("completions", start_ts),
             self.fetch_usage_endpoint("embeddings", start_ts),
@@ -131,32 +129,19 @@ impl OpenAIClient {
 
         let mut all_buckets = Vec::new();
         let mut endpoint_errors = Vec::new();
-        let mut successful_endpoints = 0;
 
-        // Collect results and surface an error if every endpoint fails
-        match completions_result {
-            Ok(mut buckets) => {
-                successful_endpoints += 1;
-                all_buckets.append(&mut buckets);
+        for (result, name) in [
+            (completions_result, "completions"),
+            (embeddings_result, "embeddings"),
+            (images_result, "images"),
+        ] {
+            match result {
+                Ok(mut buckets) => all_buckets.append(&mut buckets),
+                Err(e) => endpoint_errors.push(format!("{}: {}", name, e)),
             }
-            Err(e) => endpoint_errors.push(format!("completions: {}", e)),
-        }
-        match embeddings_result {
-            Ok(mut buckets) => {
-                successful_endpoints += 1;
-                all_buckets.append(&mut buckets);
-            }
-            Err(e) => endpoint_errors.push(format!("embeddings: {}", e)),
-        }
-        match images_result {
-            Ok(mut buckets) => {
-                successful_endpoints += 1;
-                all_buckets.append(&mut buckets);
-            }
-            Err(e) => endpoint_errors.push(format!("images: {}", e)),
         }
 
-        if successful_endpoints == 0 {
+        if all_buckets.is_empty() && !endpoint_errors.is_empty() {
             return Err(anyhow::anyhow!(
                 "Failed to fetch usage from any endpoint: {}",
                 endpoint_errors.join("; ")
@@ -217,13 +202,10 @@ impl OpenAIClient {
         let mut after: Option<String> = None;
 
         loop {
-            let url = match after {
-                Some(ref a) => format!(
-                    "{}/projects/{}/api_keys?after={}",
-                    self.base_url, project_id, a
-                ),
-                None => format!("{}/projects/{}/api_keys", self.base_url, project_id),
-            };
+            let mut url = format!("{}/projects/{}/api_keys", self.base_url, project_id);
+            if let Some(ref a) = after {
+                url = format!("{}?after={}", url, a);
+            }
 
             let response = self
                 .client
@@ -274,9 +256,8 @@ impl OpenAIClient {
             .fetch_projects()
             .await
             .context("Failed to fetch projects")?;
-        let api_key_ids_set: std::collections::HashSet<&String> = api_key_ids.iter().collect();
+        let api_key_ids_set: HashSet<&String> = api_key_ids.iter().collect();
 
-        // Fetch all API keys for each project in parallel
         let fetch_tasks: Vec<_> = projects
             .iter()
             .map(|project| {
@@ -286,7 +267,6 @@ impl OpenAIClient {
             })
             .collect();
 
-        // Collect results and build the map
         let mut api_key_map = HashMap::new();
         for task in fetch_tasks {
             if let Ok(Ok(api_keys)) = task.await {

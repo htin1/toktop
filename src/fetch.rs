@@ -2,7 +2,16 @@ use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
 use crate::models::{DailyData, DailyUsageData};
 use crate::provider::{Provider, ProviderErrors};
 use chrono::{DateTime, Duration, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+fn timestamp_to_date(timestamp: i64) -> DateTime<Utc> {
+    DateTime::from_timestamp(timestamp, 0)
+        .unwrap_or(Utc::now() - Duration::days(30))
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc()
+}
 
 pub async fn fetch_data(
     provider: Provider,
@@ -17,7 +26,7 @@ pub async fn fetch_data(
 
 fn usage_start_time() -> DateTime<Utc> {
     let now = Utc::now();
-    (now.date_naive() - Duration::days(7))
+    (now.date_naive() - Duration::days(30))
         .and_hms_opt(0, 0, 0)
         .unwrap()
         .and_utc()
@@ -45,12 +54,7 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
         match costs_result {
             Ok(buckets) => {
                 for bucket in buckets {
-                    let date = DateTime::from_timestamp(bucket.start_time, 0)
-                        .unwrap_or(Utc::now() - Duration::days(7))
-                        .date_naive()
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap();
-                    let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
+                    let date = timestamp_to_date(bucket.start_time);
 
                     for result in bucket.results {
                         cost_data.push(DailyData {
@@ -69,15 +73,10 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
 
         match usage_result {
             Ok(buckets) => {
-                let mut api_key_ids = std::collections::HashSet::new();
+                let mut api_key_ids = HashSet::new();
 
                 for bucket in &buckets {
-                    let date = DateTime::from_timestamp(bucket.start_time, 0)
-                        .unwrap_or(Utc::now() - Duration::days(7))
-                        .date_naive()
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap();
-                    let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
+                    let date = timestamp_to_date(bucket.start_time);
 
                     for result in &bucket.results {
                         let input_tokens = result.input_tokens;
@@ -175,7 +174,7 @@ async fn fetch_anthropic_data(client: Option<AnthropicClient>) -> crate::provide
 
         match usage_result {
             Ok(buckets) => {
-                let mut api_key_ids = std::collections::HashSet::new();
+                let mut api_key_ids = HashSet::new();
 
                 for bucket in &buckets {
                     if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {

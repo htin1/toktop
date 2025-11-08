@@ -30,7 +30,11 @@ async fn main() -> io::Result<()> {
 
     if let Some(env_file) = args.env_file {
         if let Err(e) = dotenvy::from_path(&env_file) {
-            eprintln!("Warning: Failed to load env file '{}': {}", env_file.display(), e);
+            eprintln!(
+                "Warning: Failed to load env file '{}': {}",
+                env_file.display(),
+                e
+            );
         }
     }
 
@@ -62,14 +66,12 @@ async fn main() -> io::Result<()> {
             }
         }
 
-        // Render UI
         {
             let mut app_lock = app.lock().await;
             app_lock.update_animation_frame();
             terminal.draw(|f| ui::render(f, &app_lock))?;
         }
 
-        // Poll for events with timeout
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {

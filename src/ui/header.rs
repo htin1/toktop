@@ -1,8 +1,9 @@
-use crate::app::App;
+use crate::app::{App, Range};
+use crate::models::{DailyData, DailyUsageData};
 use crate::ui::banner;
 use crate::ui::colors::ColorPalette;
 use crate::ui::utils::format_tokens;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -30,34 +31,35 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let total = info.total_cost();
-    let avg_per_day = total / 7.0;
+    let (total_cost, cost_bounds) = summarize_cost(&info.cost_data, app.range);
+    let ((input_tokens, output_tokens), usage_bounds) =
+        summarize_usage(&info.usage_data, app.range);
+    let range_days = app.range.days().max(1) as f64;
+    let avg_per_day = total_cost / range_days;
 
     let date_range = {
-        let dates: Vec<_> = if !cost_data.is_empty() {
-            cost_data.iter().map(|d| d.date).collect()
-        } else {
-            usage_data.iter().map(|d| d.date).collect()
-        };
-        let min_date = dates.iter().min().copied().unwrap_or(Utc::now());
-        let max_date = dates.iter().max().copied().unwrap_or(Utc::now());
-        format!(
-            "{} - {}",
-            min_date.format("%m/%d"),
-            max_date.format("%m/%d")
-        )
+        cost_bounds
+            .or(usage_bounds)
+            .map(|(min_date, max_date)| {
+                format!(
+                    "{} - {}",
+                    min_date.format("%m/%d"),
+                    max_date.format("%m/%d")
+                )
+            })
+            .unwrap_or_else(|| "No data in selected range".to_string())
     };
-
-    let total_input_tokens = info.total_input_tokens();
-    let total_output_tokens = info.total_output_tokens();
 
     let mut text = vec![];
 
     text.push(Line::from(""));
     text.push(Line::from(vec![
-        Span::styled("Total Cost (7d): ", Style::default().fg(Color::Gray)),
         Span::styled(
-            format!("${:.2}", total),
+            format!("Total Cost ({}): ", app.range.label()),
+            Style::default().fg(Color::Gray),
+        ),
+        Span::styled(
+            format!("${:.2}", total_cost),
             Style::default()
                 .fg(palette.primary)
                 .add_modifier(Modifier::BOLD),
@@ -73,13 +75,15 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ),
     ]));
 
-    // Add usage statistics for both providers
-    if total_input_tokens > 0 || total_output_tokens > 0 {
+    if input_tokens > 0 || output_tokens > 0 {
         text.push(Line::from(""));
         text.push(Line::from(vec![
-            Span::styled("Total Tokens (7d): ", Style::default().fg(Color::Gray)),
             Span::styled(
-                format_tokens(total_input_tokens + total_output_tokens),
+                format!("Total Tokens ({}): ", app.range.label()),
+                Style::default().fg(Color::Gray),
+            ),
+            Span::styled(
+                format_tokens(input_tokens + output_tokens),
                 Style::default()
                     .fg(palette.primary)
                     .add_modifier(Modifier::BOLD),
@@ -87,10 +91,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ]));
         text.push(Line::from(vec![
             Span::styled("  Input: ", Style::default().fg(Color::Cyan)),
-            Span::raw(format_tokens(total_input_tokens)),
+            Span::raw(format_tokens(input_tokens)),
             Span::raw(" | "),
             Span::styled("Output: ", Style::default().fg(Color::Magenta)),
-            Span::raw(format_tokens(total_output_tokens)),
+            Span::raw(format_tokens(output_tokens)),
         ]));
     }
 
@@ -104,4 +108,76 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Summary")),
         area,
     );
+}
+
+fn range_cutoff(range: Range, latest: chrono::DateTime<Utc>) -> chrono::DateTime<Utc> {
+    let span = range.days().saturating_sub(1);
+    latest - Duration::days(span)
+}
+
+fn summarize_cost(
+    data: &[DailyData],
+    range: Range,
+) -> (f64, Option<(chrono::DateTime<Utc>, chrono::DateTime<Utc>)>) {
+    if data.is_empty() {
+        return (0.0, None);
+    }
+
+    let latest = match data.iter().map(|d| d.date).max() {
+        Some(date) => date,
+        None => return (0.0, None),
+    };
+    let cutoff = range_cutoff(range, latest);
+
+    let mut total = 0.0;
+    let mut min_date: Option<chrono::DateTime<Utc>> = None;
+    let mut max_date: Option<chrono::DateTime<Utc>> = None;
+
+    for entry in data {
+        if entry.date >= cutoff {
+            total += entry.cost;
+            min_date = Some(min_date.map_or(entry.date, |min| min.min(entry.date)));
+            max_date = Some(max_date.map_or(entry.date, |max| max.max(entry.date)));
+        }
+    }
+
+    let bounds = min_date.zip(max_date);
+
+    (total, bounds)
+}
+
+fn summarize_usage(
+    data: &[DailyUsageData],
+    range: Range,
+) -> (
+    (u64, u64),
+    Option<(chrono::DateTime<Utc>, chrono::DateTime<Utc>)>,
+) {
+    if data.is_empty() {
+        return ((0, 0), None);
+    }
+
+    let latest = match data.iter().map(|d| d.date).max() {
+        Some(date) => date,
+        None => return ((0, 0), None),
+    };
+    let cutoff = range_cutoff(range, latest);
+
+    let mut input_total = 0;
+    let mut output_total = 0;
+    let mut min_date: Option<chrono::DateTime<Utc>> = None;
+    let mut max_date: Option<chrono::DateTime<Utc>> = None;
+
+    for entry in data {
+        if entry.date >= cutoff {
+            input_total += entry.input_tokens;
+            output_total += entry.output_tokens;
+            min_date = Some(min_date.map_or(entry.date, |min| min.min(entry.date)));
+            max_date = Some(max_date.map_or(entry.date, |max| max.max(entry.date)));
+        }
+    }
+
+    let bounds = min_date.zip(max_date);
+
+    ((input_total, output_total), bounds)
 }

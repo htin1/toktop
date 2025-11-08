@@ -1,9 +1,10 @@
-use crate::app::{App, GroupBy, View};
+use crate::app::{App, GroupBy, Range, View};
 use crate::models::DailyUsageData;
 use crate::provider::Provider;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
 use crate::ui::utils::format_tokens;
+use chrono::Duration;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -20,6 +21,16 @@ struct UsageChartData {
     items: Vec<String>,
 }
 
+fn filter_usage_data_by_range(data: &[DailyUsageData], range: Range) -> Vec<DailyUsageData> {
+    let latest_date = match data.iter().map(|d| d.date).max() {
+        Some(date) => date,
+        None => return Vec::new(),
+    };
+    let span = range.days().saturating_sub(1);
+    let cutoff = latest_date - Duration::days(span);
+    data.iter().filter(|d| d.date >= cutoff).cloned().collect()
+}
+
 fn process_usage_data(data: &[DailyUsageData], group_by: GroupBy) -> UsageChartData {
     let mut daily_tokens: HashMap<String, HashMap<String, (u64, u64)>> = HashMap::new();
     let mut item_totals: HashMap<String, (u64, u64)> = HashMap::new();
@@ -27,7 +38,6 @@ fn process_usage_data(data: &[DailyUsageData], group_by: GroupBy) -> UsageChartD
     for d in data {
         let date_str = d.date.format("%m/%d").to_string();
 
-        // Determine the grouping key based on group_by setting
         let item_key = match group_by {
             GroupBy::Model => d
                 .model
@@ -134,90 +144,123 @@ fn render_usage_legend(
     );
 }
 
-fn render_stacked_bars(
+fn render_vertical_stacked_bars(
     f: &mut Frame,
     chart_area: Rect,
     chart_data: &UsageChartData,
     item_colors: &HashMap<String, Color>,
     max_total: u64,
-) {
-    let total_height_per_bar = shared::BAR_HEIGHT + shared::BAR_SPACING;
+) -> bool {
+    if chart_area.width == 0 || chart_area.height <= 1 || max_total == 0 {
+        return false;
+    }
 
-    for (i, date) in chart_data.dates.iter().enumerate() {
-        let y_pos = chart_area.y + (i as u16 * total_height_per_bar);
+    let label_height: u16 = 1;
+    let value_label_height: u16 = 1;
+    let bar_area_height = chart_area
+        .height
+        .saturating_sub(label_height)
+        .saturating_sub(value_label_height)
+        .saturating_sub(1);
+    if bar_area_height == 0 {
+        return false;
+    }
+    let bars_y = chart_area.y + value_label_height;
 
-        if y_pos + shared::BAR_HEIGHT > chart_area.y + chart_area.height {
-            break;
-        }
+    let layout = match shared::vertical_bar_layout(chart_data.dates.len(), chart_area.width) {
+        Some(layout) => layout,
+        None => return false,
+    };
 
-        let item_tokens = &chart_data.daily_tokens[date];
+    let end_index = layout.start_index + layout.visible_bars;
+
+    for (visible_idx, date_idx) in (layout.start_index..end_index).enumerate() {
+        let date = &chart_data.dates[date_idx];
+        let item_tokens = match chart_data.daily_tokens.get(date) {
+            Some(values) => values,
+            None => continue,
+        };
         let total_tokens: u64 = item_tokens
             .values()
             .map(|(input, output)| input + output)
             .sum();
+        let bar_x = chart_area.x
+            + layout.offset
+            + (visible_idx as u16) * (layout.bar_width + layout.spacing);
 
-        // Date label
-        let date_label_area = Rect::new(
-            chart_area.x,
-            y_pos,
-            shared::DATE_LABEL_WIDTH,
-            shared::BAR_HEIGHT,
-        );
-        f.render_widget(
-            Paragraph::new(date.clone()).style(Style::default().fg(Color::White)),
-            date_label_area,
-        );
-
-        // Bar area
-        let bar_x = chart_area.x + shared::DATE_LABEL_OFFSET;
-        let bar_width = chart_area.width.saturating_sub(shared::BAR_PADDING);
-        let mut current_x = bar_x;
-
-        // Render stacked segments - one per item (model)
+        let mut used_height = 0;
+        let mut top_segment_area: Option<Rect> = None;
         for item in &chart_data.items {
             if let Some(&(input_tokens, output_tokens)) = item_tokens.get(item) {
                 let total_item_tokens = input_tokens + output_tokens;
-
-                if total_item_tokens > 0 {
-                    let segment_width =
-                        ((total_item_tokens as f64 / max_total as f64) * bar_width as f64) as u16;
-
-                    if segment_width > 0 {
-                        let color = item_colors.get(item).copied().unwrap_or(Color::White);
-                        let segment_area =
-                            Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
-
-                        let text = if segment_width > shared::MIN_SEGMENT_WIDTH_FOR_TOKENS {
-                            format_tokens(total_item_tokens)
-                        } else {
-                            "".to_string()
-                        };
-
-                        shared::render_stacked_bar_segment(
-                            f,
-                            segment_area,
-                            &text,
-                            color,
-                            Color::Black,
-                        );
-                        current_x += segment_width;
-                    }
+                if total_item_tokens == 0 {
+                    continue;
                 }
+
+                let mut segment_height = ((total_item_tokens as f64 / max_total as f64)
+                    * bar_area_height as f64)
+                    .round() as u16;
+                if segment_height == 0 {
+                    segment_height = 1;
+                }
+                let remaining = bar_area_height.saturating_sub(used_height);
+                if remaining == 0 {
+                    break;
+                }
+                if segment_height > remaining {
+                    segment_height = remaining;
+                }
+
+                let segment_y = bars_y + bar_area_height - used_height - segment_height;
+                let color = item_colors.get(item).copied().unwrap_or(Color::White);
+                let segment_area = Rect::new(bar_x, segment_y, layout.bar_width, segment_height);
+                shared::render_stacked_bar_segment(f, segment_area, "", color, Color::Black);
+                top_segment_area = Some(segment_area);
+                used_height += segment_height;
             }
         }
 
-        // Total label
-        let total_x = bar_x + bar_width + 2;
-        let total_area = Rect::new(total_x, y_pos, 14, shared::BAR_HEIGHT);
+        if used_height == 0 && bar_area_height > 0 {
+            let marker_y = bars_y + bar_area_height - 1;
+            shared::render_stacked_bar_segment(
+                f,
+                Rect::new(bar_x, marker_y, layout.bar_width, 1),
+                "",
+                Color::DarkGray,
+                Color::Black,
+            );
+        }
+
+        if total_tokens > 0 {
+            if let Some(segment_area) = top_segment_area {
+                let label_y = segment_area.y - 1;
+                f.render_widget(
+                    Paragraph::new(format_tokens(total_tokens))
+                        .alignment(Alignment::Center)
+                        .style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    Rect::new(bar_x, label_y, layout.bar_width, 1),
+                );
+            }
+        }
+
+        let label_area = Rect::new(
+            bar_x,
+            bars_y + bar_area_height,
+            layout.bar_width,
+            label_height,
+        );
+        let label_text = shared::compact_date_label(date, layout.bar_width);
         f.render_widget(
-            Paragraph::new(format_tokens(total_tokens)).style(
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            total_area,
+            Paragraph::new(label_text).alignment(Alignment::Center),
+            label_area,
         );
     }
+
+    true
 }
 
 fn render_usage_chart(
@@ -226,6 +269,7 @@ fn render_usage_chart(
     area: Rect,
     provider: Provider,
     item_colors: &HashMap<String, Color>,
+    chart_data: &UsageChartData,
 ) {
     let palette = ColorPalette::for_provider(provider);
     let group_by_label = match app.group_by {
@@ -237,21 +281,6 @@ fn render_usage_chart(
         provider.label(),
         group_by_label
     );
-
-    let usage_data = match app.usage_data_for_provider(provider) {
-        Some(data) => data,
-        None => {
-            shared::render_empty_state(f, area, &title, "Usage data not available");
-            return;
-        }
-    };
-
-    if usage_data.is_empty() {
-        shared::render_empty_state(f, area, &title, "No usage data available");
-        return;
-    }
-
-    let chart_data = process_usage_data(usage_data, app.group_by);
 
     if chart_data.dates.is_empty() {
         shared::render_empty_state(f, area, &title, "No data available");
@@ -271,8 +300,8 @@ fn render_usage_chart(
         .max(1);
 
     let block = Block::default().borders(Borders::ALL).title(title);
+    let inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Block::default().borders(Borders::ALL).inner(area);
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -293,7 +322,14 @@ fn render_usage_chart(
     );
 
     let chart_area = chunks[0];
-    render_stacked_bars(f, chart_area, &chart_data, &item_colors, max_total);
+    if !render_vertical_stacked_bars(f, chart_area, chart_data, &item_colors, max_total) {
+        shared::render_empty_state(
+            f,
+            chart_area,
+            "Chart",
+            "Not enough space to render usage chart",
+        );
+    }
 }
 
 pub fn render_usage_view(
@@ -367,11 +403,23 @@ pub fn render_usage_view(
         return;
     }
 
-    // Process usage data to get items based on group_by
-    let chart_data = process_usage_data(usage_data, app.group_by);
+    let filtered_data = filter_usage_data_by_range(usage_data, app.range);
 
-    // Create color mapping by rotating through palette
+    if filtered_data.is_empty() {
+        shared::render_empty_state(
+            f,
+            area,
+            &title,
+            &format!(
+                "No {} Usage data available for the selected window.",
+                provider.label()
+            ),
+        );
+        return;
+    }
+
+    let chart_data = process_usage_data(&filtered_data, app.group_by);
     let item_colors = shared::create_color_mapping(&chart_data.items, palette);
 
-    render_usage_chart(f, app, area, provider, &item_colors);
+    render_usage_chart(f, app, area, provider, &item_colors, &chart_data);
 }

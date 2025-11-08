@@ -24,8 +24,51 @@
 
 </div>
 
-toktop is a terminal-based monitor for OpenAI and Anthropic token usage and costs. It allows user (admin of their openai and anthropic accounts) to monitor their usage without constantly jumping into different websites.
+toktop is a terminal-based monitor for OpenAI and Anthropic token usage and costs. It allows user (admin of their openai and anthropic accounts) to monitor their usage inside terminal without constantly jumping into different websites.
 
+## Installation
+
+```bash
+cargo install toktop
+```
+
+## Usage
+
+### Option 1: Interactive Input
+
+If no API keys are provided, toktop will prompt you to enter them interactively when you switch to a provider.
+
+![Interactive Prompt](assets/interactive_prompt.png)
+
+### Option 2: Environment Variables
+
+Set the API keys as environment variables:
+
+```bash
+export OPENAI_ADMIN_KEY="your-openai-key"
+export ANTHROPIC_ADMIN_KEY="your-anthropic-key"
+toktop
+```
+
+### Option 3: Environment File
+
+Create a `.env` file (or any file) with your API keys:
+
+```bash
+# .env
+OPENAI_ADMIN_KEY=your-openai-key
+ANTHROPIC_ADMIN_KEY=your-anthropic-key
+```
+
+Then run with the `--env-file` flag:
+
+```bash
+toktop --env-file .env
+# or use the short form
+toktop -e .env
+```
+
+## API Keys
 
 ### OPENAI
 It requires `$OPENAI_ADMIN_KEY` from https://platform.openai.com/settings/organization/admin-keys with READ permission to `Management API Scope` and `Usage API Scope`.

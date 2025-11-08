@@ -49,18 +49,6 @@ impl ProviderInfo {
             api_key_names: HashMap::new(),
         }
     }
-
-    pub fn total_cost(&self) -> f64 {
-        self.cost_data.iter().map(|d| d.cost).sum()
-    }
-
-    pub fn total_input_tokens(&self) -> u64 {
-        self.usage_data.iter().map(|d| d.input_tokens).sum()
-    }
-
-    pub fn total_output_tokens(&self) -> u64 {
-        self.usage_data.iter().map(|d| d.output_tokens).sum()
-    }
 }
 
 pub struct FetchOutcome {

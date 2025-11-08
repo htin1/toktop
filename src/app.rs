@@ -16,10 +16,33 @@ pub enum GroupBy {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Range {
+    SevenDays,
+    ThirtyDays,
+}
+
+impl Range {
+    pub fn label(self) -> &'static str {
+        match self {
+            Range::SevenDays => "7d",
+            Range::ThirtyDays => "30d",
+        }
+    }
+
+    pub fn days(self) -> i64 {
+        match self {
+            Range::SevenDays => 7,
+            Range::ThirtyDays => 30,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OptionsColumn {
     Provider,
     Metric,
     GroupBy,
+    Range,
 }
 
 pub struct App {
@@ -29,6 +52,7 @@ pub struct App {
     pub options_column: OptionsColumn,
     pub current_view: View,
     pub group_by: GroupBy,
+    pub range: Range,
     pub api_key_popup_active: Option<Provider>,
     pub api_key_input: String,
     pub animation_frame: u32,
@@ -46,6 +70,7 @@ impl App {
             options_column: OptionsColumn::Provider,
             current_view: View::Usage,
             group_by: GroupBy::Model,
+            range: Range::SevenDays,
             api_key_popup_active: None,
             api_key_input: String::new(),
             animation_frame: 0,
@@ -57,6 +82,7 @@ impl App {
             OptionsColumn::Provider,
             OptionsColumn::Metric,
             OptionsColumn::GroupBy,
+            OptionsColumn::Range,
         ];
         let len = columns.len() as isize;
         let current_idx = columns
@@ -96,7 +122,6 @@ impl App {
                     let new_view = metrics[next as usize];
                     if new_view != self.current_view {
                         self.current_view = new_view;
-                        // When switching to Cost, ensure group_by is Model
                         if self.current_view == View::Cost {
                             self.group_by = GroupBy::Model;
                         }
@@ -114,6 +139,14 @@ impl App {
                         let next = (idx as isize + delta).rem_euclid(len);
                         self.group_by = group_by_options[next as usize];
                     }
+                }
+            }
+            OptionsColumn::Range => {
+                let ranges = [Range::SevenDays, Range::ThirtyDays];
+                let len = ranges.len() as isize;
+                if let Some(idx) = ranges.iter().position(|&r| r == self.range) {
+                    let next = (idx as isize + delta).rem_euclid(len);
+                    self.range = ranges[next as usize];
                 }
             }
         }
@@ -141,7 +174,6 @@ impl App {
         if self.has_client(self.selected_provider) {
             return;
         }
-        // Switch to first available provider
         if self.has_client(Provider::OpenAI) {
             self.selected_provider = Provider::OpenAI;
         } else if self.has_client(Provider::Anthropic) {
@@ -233,7 +265,6 @@ impl App {
     pub fn update_animation_frame(&mut self) {
         let provider = self.current_provider();
         let info = self.provider_info(provider);
-        // Stop animation if we have any data (cost or usage) and not loading
         let has_data = !info.cost_data.is_empty() || !info.usage_data.is_empty();
         if self.loading || !has_data {
             self.animation_frame = self.animation_frame.wrapping_add(1);
@@ -260,17 +291,22 @@ impl App {
     }
 
     pub fn get_clients(&self) -> (Option<OpenAIClient>, Option<AnthropicClient>) {
-        let openai_client = match &self.provider_info(crate::provider::Provider::OpenAI).client {
-            Some(crate::provider::ProviderClient::OpenAI(client)) => Some(client.clone()),
-            _ => None,
-        };
-        let anthropic_client = match &self
-            .provider_info(crate::provider::Provider::Anthropic)
+        let openai_client = self
+            .provider_info(Provider::OpenAI)
             .client
-        {
-            Some(crate::provider::ProviderClient::Anthropic(client)) => Some(client.clone()),
-            _ => None,
-        };
+            .as_ref()
+            .and_then(|c| match c {
+                ProviderClient::OpenAI(client) => Some(client.clone()),
+                _ => None,
+            });
+        let anthropic_client = self
+            .provider_info(Provider::Anthropic)
+            .client
+            .as_ref()
+            .and_then(|c| match c {
+                ProviderClient::Anthropic(client) => Some(client.clone()),
+                _ => None,
+            });
         (openai_client, anthropic_client)
     }
 }
