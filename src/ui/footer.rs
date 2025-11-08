@@ -15,11 +15,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(
         Paragraph::new(vec![Line::from(vec![
             Span::raw("Commands: "),
-            Span::styled("↑/↓", Style::default().fg(palette.accent)),
-            Span::raw("=select provider "),
-            Span::raw("| "),
-            Span::styled("Tab", Style::default().fg(palette.accent)),
-            Span::raw("=switch view "),
+            Span::styled("←/→/↑/↓", Style::default().fg(palette.accent)),
+            Span::raw("=switch option "),
             Span::raw("| "),
             Span::styled("r", Style::default().fg(palette.primary)),
             Span::raw("=refresh "),
