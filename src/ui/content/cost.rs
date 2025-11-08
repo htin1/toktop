@@ -1,5 +1,6 @@
-use crate::app::{App, Provider, View};
+use crate::app::{App, View};
 use crate::models::DailyData;
+use crate::provider::Provider;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
 use ratatui::{

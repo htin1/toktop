@@ -1,4 +1,5 @@
-use crate::app::{App, GroupBy, OptionsColumn, Provider, View};
+use crate::app::{App, GroupBy, OptionsColumn, View};
+use crate::provider::Provider;
 use crate::ui::colors::ColorPalette;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},

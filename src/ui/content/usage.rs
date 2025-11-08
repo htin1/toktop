@@ -1,5 +1,6 @@
-use crate::app::{App, GroupBy, Provider, View};
+use crate::app::{App, GroupBy, View};
 use crate::models::DailyUsageData;
+use crate::provider::Provider;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
 use crate::ui::utils::format_tokens;
@@ -278,10 +279,7 @@ fn render_usage_chart(
         .constraints([Constraint::Min(0), Constraint::Length(shared::LEGEND_WIDTH)])
         .split(inner);
 
-    let api_key_names = match provider {
-        Provider::OpenAI => &app.data.openai_api_key_names,
-        Provider::Anthropic => &app.data.anthropic_api_key_names,
-    };
+    let api_key_names = &app.provider_info(provider).api_key_names;
 
     render_usage_legend(
         f,

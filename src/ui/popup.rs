@@ -55,7 +55,7 @@ fn render_loading_popup(f: &mut Frame, area: Rect, palette: ColorPalette) {
 fn render_api_key_popup(
     f: &mut Frame,
     area: Rect,
-    provider: crate::app::Provider,
+    provider: crate::provider::Provider,
     input_text: &str,
 ) {
     let palette = ColorPalette::for_provider(provider);
@@ -66,11 +66,11 @@ fn render_api_key_popup(
 
     // Provider-specific hints
     let (key_url, env_var_name) = match provider {
-        crate::app::Provider::OpenAI => (
+        crate::provider::Provider::OpenAI => (
             "https://platform.openai.com/settings/organization/admin-keys",
             "OPENAI_ADMIN_KEY",
         ),
-        crate::app::Provider::Anthropic => (
+        crate::provider::Provider::Anthropic => (
             "https://console.anthropic.com/settings/admin-keys",
             "ANTHROPIC_ADMIN_KEY",
         ),

@@ -30,16 +30,6 @@ pub struct DailyUsageData {
     pub model: Option<String>,
 }
 
-#[derive(Clone)]
-pub struct UsageData {
-    pub openai: Vec<DailyData>,
-    pub anthropic: Vec<DailyData>,
-    pub anthropic_usage: Vec<DailyUsageData>,
-    pub openai_usage: Vec<DailyUsageData>,
-    pub anthropic_api_key_names: std::collections::HashMap<String, String>,
-    pub openai_api_key_names: std::collections::HashMap<String, String>,
-}
-
 #[derive(Deserialize)]
 pub struct OpenAICostResponse {
     pub data: Vec<OpenAIBucket<OpenAICostResult>>,
@@ -327,35 +317,4 @@ pub struct OpenAIProjectApiKeysResponse {
     pub last_id: Option<String>,
     #[serde(default)]
     pub has_more: bool,
-}
-
-impl UsageData {
-    pub fn new() -> Self {
-        Self {
-            openai: Vec::new(),
-            anthropic: Vec::new(),
-            anthropic_usage: Vec::new(),
-            openai_usage: Vec::new(),
-            anthropic_api_key_names: std::collections::HashMap::new(),
-            openai_api_key_names: std::collections::HashMap::new(),
-        }
-    }
-    pub fn openai_total_cost(&self) -> f64 {
-        self.openai.iter().map(|d| d.cost).sum()
-    }
-    pub fn anthropic_total_cost(&self) -> f64 {
-        self.anthropic.iter().map(|d| d.cost).sum()
-    }
-    pub fn anthropic_total_input_tokens(&self) -> u64 {
-        self.anthropic_usage.iter().map(|d| d.input_tokens).sum()
-    }
-    pub fn anthropic_total_output_tokens(&self) -> u64 {
-        self.anthropic_usage.iter().map(|d| d.output_tokens).sum()
-    }
-    pub fn openai_total_input_tokens(&self) -> u64 {
-        self.openai_usage.iter().map(|d| d.input_tokens).sum()
-    }
-    pub fn openai_total_output_tokens(&self) -> u64 {
-        self.openai_usage.iter().map(|d| d.output_tokens).sum()
-    }
 }

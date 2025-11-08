@@ -218,7 +218,10 @@ impl OpenAIClient {
 
         loop {
             let url = match after {
-                Some(ref a) => format!("{}/projects/{}/api_keys?after={}", self.base_url, project_id, a),
+                Some(ref a) => format!(
+                    "{}/projects/{}/api_keys?after={}",
+                    self.base_url, project_id, a
+                ),
                 None => format!("{}/projects/{}/api_keys", self.base_url, project_id),
             };
 
@@ -229,7 +232,10 @@ impl OpenAIClient {
                 .header("Content-Type", "application/json")
                 .send()
                 .await
-                .context(format!("Failed to fetch API keys for project {}", project_id))?;
+                .context(format!(
+                    "Failed to fetch API keys for project {}",
+                    project_id
+                ))?;
 
             let status = response.status();
             let text = response.text().await.context("Failed to read response")?;
@@ -238,12 +244,11 @@ impl OpenAIClient {
                 return Err(anyhow::anyhow!("API error: {} - {}", status, text));
             }
 
-            let resp: OpenAIProjectApiKeysResponse = serde_json::from_str(&text).context(
-                format!(
+            let resp: OpenAIProjectApiKeysResponse =
+                serde_json::from_str(&text).context(format!(
                     "Failed to parse API keys response for project {}",
                     project_id
-                ),
-            )?;
+                ))?;
 
             all_api_keys.extend(resp.data);
 
@@ -269,8 +274,7 @@ impl OpenAIClient {
             .fetch_projects()
             .await
             .context("Failed to fetch projects")?;
-        let api_key_ids_set: std::collections::HashSet<&String> =
-            api_key_ids.iter().collect();
+        let api_key_ids_set: std::collections::HashSet<&String> = api_key_ids.iter().collect();
 
         // Fetch all API keys for each project in parallel
         let fetch_tasks: Vec<_> = projects
@@ -278,9 +282,7 @@ impl OpenAIClient {
             .map(|project| {
                 let client = self.clone();
                 let project_id = project.id.clone();
-                tokio::spawn(async move {
-                    client.fetch_api_keys_for_project(&project_id).await
-                })
+                tokio::spawn(async move { client.fetch_api_keys_for_project(&project_id).await })
             })
             .collect();
 
@@ -290,10 +292,8 @@ impl OpenAIClient {
             if let Ok(Ok(api_keys)) = task.await {
                 for api_key in api_keys {
                     if api_key_ids_set.contains(&api_key.id) {
-                        api_key_map.insert(
-                            api_key.id.clone(),
-                            api_key.name.clone().unwrap_or_default(),
-                        );
+                        api_key_map
+                            .insert(api_key.id.clone(), api_key.name.clone().unwrap_or_default());
                     }
                 }
             }

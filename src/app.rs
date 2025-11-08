@@ -1,21 +1,7 @@
 use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
-use crate::models::{DailyData, DailyUsageData, UsageData};
-use chrono::{DateTime, Duration, Utc};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Provider {
-    OpenAI,
-    Anthropic,
-}
-
-impl Provider {
-    pub fn label(self) -> &'static str {
-        match self {
-            Provider::OpenAI => "OpenAI",
-            Provider::Anthropic => "Anthropic",
-        }
-    }
-}
+use crate::models::DailyData;
+use crate::provider::{Provider, ProviderClient, ProviderInfo};
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -36,29 +22,13 @@ pub enum OptionsColumn {
     GroupBy,
 }
 
-#[derive(Default, Clone)]
-pub struct ProviderErrors {
-    pub cost: Option<String>,
-    pub usage: Option<String>,
-}
-
-pub struct FetchOutcome {
-    pub data: UsageData,
-    pub openai_errors: ProviderErrors,
-    pub anthropic_errors: ProviderErrors,
-}
-
 pub struct App {
-    pub openai_client: Option<OpenAIClient>,
-    pub anthropic_client: Option<AnthropicClient>,
-    pub data: UsageData,
+    pub providers: HashMap<Provider, ProviderInfo>,
     pub loading: bool,
     pub selected_provider: Provider,
     pub options_column: OptionsColumn,
     pub current_view: View,
     pub group_by: GroupBy,
-    pub openai_errors: ProviderErrors,
-    pub anthropic_errors: ProviderErrors,
     pub api_key_popup_active: Option<Provider>,
     pub api_key_input: String,
     pub animation_frame: u32,
@@ -66,17 +36,16 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        let mut providers = HashMap::new();
+        providers.insert(Provider::OpenAI, ProviderInfo::new());
+        providers.insert(Provider::Anthropic, ProviderInfo::new());
         Self {
-            openai_client: None,
-            anthropic_client: None,
-            data: UsageData::new(),
+            providers,
             loading: false,
             selected_provider: Provider::OpenAI,
             options_column: OptionsColumn::Provider,
             current_view: View::Usage,
             group_by: GroupBy::Model,
-            openai_errors: ProviderErrors::default(),
-            anthropic_errors: ProviderErrors::default(),
             api_key_popup_active: None,
             api_key_input: String::new(),
             animation_frame: 0,
@@ -151,12 +120,16 @@ impl App {
     }
 
     pub fn set_openai_client(&mut self, api_key: String) {
-        self.openai_client = Some(OpenAIClient::new(api_key));
+        let info = self.providers.get_mut(&Provider::OpenAI).unwrap();
+        info.client = Some(ProviderClient::OpenAI(OpenAIClient::new(api_key)));
+        info.initial_fetch_done = false;
         self.ensure_selection_has_client();
     }
 
     pub fn set_anthropic_client(&mut self, api_key: String) {
-        self.anthropic_client = Some(AnthropicClient::new(api_key));
+        let info = self.providers.get_mut(&Provider::Anthropic).unwrap();
+        info.client = Some(ProviderClient::Anthropic(AnthropicClient::new(api_key)));
+        info.initial_fetch_done = false;
         self.ensure_selection_has_client();
     }
 
@@ -176,34 +149,43 @@ impl App {
         }
     }
 
+    pub fn provider_info(&self, provider: Provider) -> &ProviderInfo {
+        self.providers.get(&provider).unwrap()
+    }
+
+    pub fn provider_info_mut(&mut self, provider: Provider) -> &mut ProviderInfo {
+        self.providers.get_mut(&provider).unwrap()
+    }
+
     pub fn has_client(&self, provider: Provider) -> bool {
-        match provider {
-            Provider::OpenAI => self.openai_client.is_some(),
-            Provider::Anthropic => self.anthropic_client.is_some(),
-        }
+        self.provider_info(provider).client.is_some()
+    }
+
+    pub fn initial_fetch_done(&self, provider: Provider) -> bool {
+        self.provider_info(provider).initial_fetch_done
+    }
+
+    pub fn mark_initial_fetch_done(&mut self, provider: Provider) {
+        self.provider_info_mut(provider).initial_fetch_done = true;
     }
 
     pub fn error_for_provider(&self, provider: Provider, view: View) -> Option<&String> {
-        match (provider, view) {
-            (Provider::OpenAI, View::Cost) => self.openai_errors.cost.as_ref(),
-            (Provider::OpenAI, View::Usage) => self.openai_errors.usage.as_ref(),
-            (Provider::Anthropic, View::Cost) => self.anthropic_errors.cost.as_ref(),
-            (Provider::Anthropic, View::Usage) => self.anthropic_errors.usage.as_ref(),
+        let info = self.provider_info(provider);
+        match view {
+            View::Cost => info.errors.cost.as_ref(),
+            View::Usage => info.errors.usage.as_ref(),
         }
     }
 
     pub fn data_for_provider(&self, provider: Provider) -> Option<&[DailyData]> {
-        match provider {
-            Provider::OpenAI => Some(&self.data.openai),
-            Provider::Anthropic => Some(&self.data.anthropic),
-        }
+        Some(&self.provider_info(provider).cost_data)
     }
 
-    pub fn usage_data_for_provider(&self, provider: Provider) -> Option<&[DailyUsageData]> {
-        match provider {
-            Provider::Anthropic => Some(&self.data.anthropic_usage),
-            Provider::OpenAI => Some(&self.data.openai_usage),
-        }
+    pub fn usage_data_for_provider(
+        &self,
+        provider: Provider,
+    ) -> Option<&[crate::models::DailyUsageData]> {
+        Some(&self.provider_info(provider).usage_data)
     }
 
     pub fn show_api_key_popup(&mut self, provider: Provider) {
@@ -230,7 +212,7 @@ impl App {
                 }
                 self.api_key_popup_active = None;
                 self.api_key_input.clear();
-                return true; // Key was submitted
+                return true;
             }
         }
         false
@@ -247,247 +229,46 @@ impl App {
             _ => {}
         }
     }
-}
 
-pub async fn fetch_data(
-    provider: Provider,
-    openai_client: Option<OpenAIClient>,
-    anthropic_client: Option<AnthropicClient>,
-) -> FetchOutcome {
-    let mut usage_data = UsageData::new();
-    let mut openai_errors = ProviderErrors::default();
-    let mut anthropic_errors = ProviderErrors::default();
-
-    match provider {
-        Provider::OpenAI => {
-            openai_errors = fetch_openai_data(openai_client, &mut usage_data).await;
-        }
-        Provider::Anthropic => {
-            anthropic_errors = fetch_anthropic_data(anthropic_client, &mut usage_data).await;
+    pub fn update_animation_frame(&mut self) {
+        let provider = self.current_provider();
+        let has_data = !self.provider_info(provider).cost_data.is_empty();
+        if self.loading || !has_data {
+            self.animation_frame = self.animation_frame.wrapping_add(1);
+        } else {
+            self.animation_frame = 0;
         }
     }
 
-    FetchOutcome {
-        data: usage_data,
-        openai_errors,
-        anthropic_errors,
-    }
-}
-
-fn usage_start_time() -> DateTime<Utc> {
-    let now = Utc::now();
-    (now.date_naive() - Duration::days(7))
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-        .and_utc()
-}
-
-fn append_error(target: &mut Option<String>, message: String) {
-    if let Some(existing) = target.take() {
-        *target = Some(format!("{}; {}", existing, message));
-    } else {
-        *target = Some(message);
-    }
-}
-
-async fn fetch_openai_data(
-    client: Option<OpenAIClient>,
-    usage_data: &mut UsageData,
-) -> ProviderErrors {
-    let mut errors = ProviderErrors::default();
-    let start_time = usage_start_time();
-
-    if let Some(client) = client {
-        let (costs_result, usage_result) =
-            tokio::join!(client.fetch_costs(), client.fetch_usage(start_time),);
-
-        match costs_result {
-            Ok(buckets) => {
-                for bucket in buckets {
-                    let date = DateTime::from_timestamp(bucket.start_time, 0)
-                        .unwrap_or(Utc::now() - Duration::days(7))
-                        .date_naive()
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap();
-                    let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
-
-                    for result in bucket.results {
-                        usage_data.openai.push(DailyData {
-                            date,
-                            cost: result.amount.value,
-                            line_item: result.line_item,
-                        });
-                    }
-                }
-                usage_data.openai.sort_by_key(|d| d.date);
-            }
-            Err(e) => {
-                append_error(&mut errors.cost, e.to_string());
-            }
-        }
-
-        match usage_result {
-            Ok(buckets) => {
-                let mut api_key_ids = std::collections::HashSet::new();
-
-                for bucket in &buckets {
-                    let date = DateTime::from_timestamp(bucket.start_time, 0)
-                        .unwrap_or(Utc::now() - Duration::days(7))
-                        .date_naive()
-                        .and_hms_opt(0, 0, 0)
-                        .unwrap();
-                    let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
-
-                    for result in &bucket.results {
-                        let input_tokens = result.input_tokens;
-                        let output_tokens = result.output_tokens;
-
-                        if input_tokens > 0 || output_tokens > 0 {
-                            usage_data.openai_usage.push(DailyUsageData {
-                                date,
-                                input_tokens,
-                                output_tokens,
-                                api_key_id: result.api_key_id.clone(),
-                                model: result.model.clone(),
-                            });
-
-                            if let Some(ref api_key_id) = result.api_key_id {
-                                api_key_ids.insert(api_key_id.clone());
-                            }
-                        }
-                    }
-                }
-                usage_data.openai_usage.sort_by_key(|d| d.date);
-
-                let api_key_ids: Vec<String> = api_key_ids
-                    .into_iter()
-                    .filter(|id| !id.is_empty() && id != "unknown")
-                    .collect();
-
-                if !api_key_ids.is_empty() {
-                    match client.fetch_api_key_names_for_ids(&api_key_ids).await {
-                        Ok(api_key_map) => {
-                            usage_data.openai_api_key_names.extend(api_key_map);
-                        }
-                        Err(e) => {
-                            append_error(
-                                &mut errors.usage,
-                                format!("API key name fetch failed: {}", e),
-                            );
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                append_error(&mut errors.usage, format!("Usage fetch failed: {}", e));
-            }
-        }
+    pub fn start_fetch(&mut self) {
+        self.loading = true;
+        let provider = self.current_provider();
+        let info = self.provider_info_mut(provider);
+        info.errors = crate::provider::ProviderErrors::default();
     }
 
-    errors
-}
-
-async fn fetch_anthropic_data(
-    client: Option<AnthropicClient>,
-    usage_data: &mut UsageData,
-) -> ProviderErrors {
-    let mut errors = ProviderErrors::default();
-    let start_time = usage_start_time();
-
-    if let Some(client) = client {
-        let (costs_result, usage_result) = tokio::join!(
-            client.fetch_costs(start_time),
-            client.fetch_usage(start_time),
-        );
-
-        match costs_result {
-            Ok(buckets) => {
-                for bucket in buckets {
-                    if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
-                        let date = bucket_start.with_timezone(&Utc);
-                        for result in bucket.results {
-                            if let Ok(cost_cents) = result.amount.parse::<f64>() {
-                                let cost = cost_cents / 100.0;
-                                if cost > 0.0 {
-                                    usage_data.anthropic.push(DailyData {
-                                        date,
-                                        cost,
-                                        line_item: result.model,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-                usage_data.anthropic.sort_by_key(|d| d.date);
-            }
-            Err(e) => {
-                append_error(&mut errors.cost, e.to_string());
-            }
-        }
-
-        match usage_result {
-            Ok(buckets) => {
-                let mut api_key_ids = std::collections::HashSet::new();
-
-                for bucket in &buckets {
-                    if let Ok(bucket_start) = DateTime::parse_from_rfc3339(&bucket.starting_at) {
-                        let date = bucket_start.with_timezone(&Utc);
-                        for result in &bucket.results {
-                            let input_tokens = result.uncached_input_tokens
-                                + result.cache_creation.ephemeral_1h_input_tokens
-                                + result.cache_creation.ephemeral_5m_input_tokens
-                                + result.cache_read_input_tokens;
-
-                            if input_tokens > 0 || result.output_tokens > 0 {
-                                usage_data.anthropic_usage.push(DailyUsageData {
-                                    date,
-                                    input_tokens,
-                                    output_tokens: result.output_tokens,
-                                    api_key_id: result.api_key_id.clone(),
-                                    model: result.model.clone(),
-                                });
-
-                                if let Some(ref api_key_id) = result.api_key_id {
-                                    api_key_ids.insert(api_key_id.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-                usage_data.anthropic_usage.sort_by_key(|d| d.date);
-
-                let api_key_ids: Vec<String> = api_key_ids
-                    .into_iter()
-                    .filter(|id| !id.is_empty() && id != "unknown")
-                    .collect();
-
-                if !api_key_ids.is_empty() {
-                    let name_futures: Vec<_> = api_key_ids
-                        .into_iter()
-                        .map(|api_key_id| {
-                            let client_clone = client.clone();
-                            tokio::spawn(async move {
-                                let result = client_clone.fetch_api_key_name(&api_key_id).await;
-                                (api_key_id, result)
-                            })
-                        })
-                        .collect();
-
-                    for handle in name_futures {
-                        if let Ok((api_key_id, result)) = handle.await {
-                            if let Ok(name) = result {
-                                usage_data.anthropic_api_key_names.insert(api_key_id, name);
-                            }
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                append_error(&mut errors.usage, format!("Usage fetch failed: {}", e));
-            }
-        }
+    pub fn finish_fetch(&mut self, outcome: crate::provider::FetchOutcome) {
+        let info = self.provider_info_mut(outcome.provider);
+        info.cost_data = outcome.cost_data;
+        info.usage_data = outcome.usage_data;
+        info.api_key_names = outcome.api_key_names;
+        info.errors = outcome.errors;
+        self.mark_initial_fetch_done(outcome.provider);
+        self.loading = false;
     }
 
-    errors
+    pub fn get_clients(&self) -> (Option<OpenAIClient>, Option<AnthropicClient>) {
+        let openai_client = match &self.provider_info(crate::provider::Provider::OpenAI).client {
+            Some(crate::provider::ProviderClient::OpenAI(client)) => Some(client.clone()),
+            _ => None,
+        };
+        let anthropic_client = match &self
+            .provider_info(crate::provider::Provider::Anthropic)
+            .client
+        {
+            Some(crate::provider::ProviderClient::Anthropic(client)) => Some(client.clone()),
+            _ => None,
+        };
+        (openai_client, anthropic_client)
+    }
 }

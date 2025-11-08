@@ -1,4 +1,4 @@
-use crate::app::{App, Provider};
+use crate::app::App;
 use crate::ui::banner;
 use crate::ui::colors::ColorPalette;
 use crate::ui::utils::format_tokens;
@@ -15,11 +15,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
 
-    let data = match provider {
-        Provider::OpenAI => &app.data.openai,
-        Provider::Anthropic => &app.data.anthropic,
-    };
-
+    let info = app.provider_info(provider);
+    let data = &info.cost_data;
     let has_data = !data.is_empty();
 
     if app.loading || !has_data {
@@ -32,10 +29,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let total = match provider {
-        Provider::OpenAI => app.data.openai_total_cost(),
-        Provider::Anthropic => app.data.anthropic_total_cost(),
-    };
+    let total = info.total_cost();
     let avg_per_day = total / 7.0;
 
     let date_range = {
@@ -48,16 +42,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         )
     };
 
-    let (total_input_tokens, total_output_tokens) = match provider {
-        Provider::Anthropic => (
-            app.data.anthropic_total_input_tokens(),
-            app.data.anthropic_total_output_tokens(),
-        ),
-        Provider::OpenAI => (
-            app.data.openai_total_input_tokens(),
-            app.data.openai_total_output_tokens(),
-        ),
-    };
+    let total_input_tokens = info.total_input_tokens();
+    let total_output_tokens = info.total_output_tokens();
 
     let mut text = vec![];
 

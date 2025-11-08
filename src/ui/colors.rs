@@ -1,4 +1,4 @@
-use crate::app::Provider;
+use crate::provider::Provider;
 use ratatui::style::Color;
 
 pub struct ColorPalette {
