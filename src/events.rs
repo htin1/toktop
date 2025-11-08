@@ -44,8 +44,7 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             }
         }
         KeyCode::Esc if popup_active => {
-            app.cancel_api_key_popup();
-            EventAction::None
+            EventAction::Quit
         }
         _ if popup_active => {
             app.handle_api_key_input(key_code);

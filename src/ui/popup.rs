@@ -115,7 +115,7 @@ fn render_api_key_popup(
             ]),
             Line::from(""),
             Line::from(Span::styled(
-                "Press Enter to submit, Esc to cancel",
+                "Press Enter to submit, Esc to quit",
                 Style::default().fg(palette.primary),
             )),
         ])
