@@ -1,6 +1,6 @@
 use crate::models::{
     OpenAIBucket, OpenAICostResponse, OpenAICostResult, OpenAIProjectApiKey,
-    OpenAIProjectsResponse, OpenAIUsageResponse,
+    OpenAIProjectApiKeysResponse, OpenAIProjectsResponse, OpenAIUsageResponse,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -209,45 +209,56 @@ impl OpenAIClient {
         Ok(all_projects)
     }
 
-    pub async fn fetch_api_key_by_id(
+    async fn fetch_api_keys_for_project(
         &self,
         project_id: &str,
-        api_key_id: &str,
-    ) -> Result<Option<OpenAIProjectApiKey>> {
-        let url = format!(
-            "{}/projects/{}/api_keys/{}",
-            self.base_url, project_id, api_key_id
-        );
+    ) -> Result<Vec<OpenAIProjectApiKey>> {
+        let mut all_api_keys = Vec::new();
+        let mut after: Option<String> = None;
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .send()
-            .await
-            .context(format!(
-                "Failed to fetch API key {} from project {}",
-                api_key_id, project_id
-            ))?;
+        loop {
+            let url = match after {
+                Some(ref a) => format!("{}/projects/{}/api_keys?after={}", self.base_url, project_id, a),
+                None => format!("{}/projects/{}/api_keys", self.base_url, project_id),
+            };
 
-        let status = response.status();
-        let text = response.text().await.context("Failed to read response")?;
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .send()
+                .await
+                .context(format!("Failed to fetch API keys for project {}", project_id))?;
 
-        if status == 404 {
-            return Ok(None);
+            let status = response.status();
+            let text = response.text().await.context("Failed to read response")?;
+
+            if !status.is_success() {
+                return Err(anyhow::anyhow!("API error: {} - {}", status, text));
+            }
+
+            let resp: OpenAIProjectApiKeysResponse = serde_json::from_str(&text).context(
+                format!(
+                    "Failed to parse API keys response for project {}",
+                    project_id
+                ),
+            )?;
+
+            all_api_keys.extend(resp.data);
+
+            if !resp.has_more {
+                break;
+            }
+
+            if let Some(id) = resp.last_id {
+                after = Some(id);
+            } else {
+                break;
+            }
         }
 
-        if !status.is_success() {
-            return Err(anyhow::anyhow!("API error: {} - {}", status, text));
-        }
-
-        let api_key: OpenAIProjectApiKey = serde_json::from_str(&text).context(format!(
-            "Failed to parse API key response: {}",
-            text.chars().take(200).collect::<String>()
-        ))?;
-
-        Ok(Some(api_key))
+        Ok(all_api_keys)
     }
 
     pub async fn fetch_api_key_names_for_ids(
@@ -258,16 +269,32 @@ impl OpenAIClient {
             .fetch_projects()
             .await
             .context("Failed to fetch projects")?;
-        let mut api_key_map = HashMap::new();
+        let api_key_ids_set: std::collections::HashSet<&String> =
+            api_key_ids.iter().collect();
 
-        for api_key_id in api_key_ids {
-            for project in &projects {
-                match self.fetch_api_key_by_id(&project.id, api_key_id).await? {
-                    Some(api_key) => {
-                        api_key_map.insert(api_key.id.clone(), api_key.name.clone());
-                        break;
+        // Fetch all API keys for each project in parallel
+        let fetch_tasks: Vec<_> = projects
+            .iter()
+            .map(|project| {
+                let client = self.clone();
+                let project_id = project.id.clone();
+                tokio::spawn(async move {
+                    client.fetch_api_keys_for_project(&project_id).await
+                })
+            })
+            .collect();
+
+        // Collect results and build the map
+        let mut api_key_map = HashMap::new();
+        for task in fetch_tasks {
+            if let Ok(Ok(api_keys)) = task.await {
+                for api_key in api_keys {
+                    if api_key_ids_set.contains(&api_key.id) {
+                        api_key_map.insert(
+                            api_key.id.clone(),
+                            api_key.name.clone().unwrap_or_default(),
+                        );
                     }
-                    None => continue,
                 }
             }
         }
