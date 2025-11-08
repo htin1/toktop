@@ -99,6 +99,12 @@ fn render_cost_legend(
 
     for item in &legend_items {
         let color = item_colors.get(item).copied().unwrap_or(Color::White);
+        let cost = item_totals.get(item).copied().unwrap_or(0.0);
+        let cost_str = if cost >= 1.0 {
+            format!("${:.2}", cost).trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            format!("${:.2}", cost)
+        };
         legend_lines.push(Line::from(vec![
             Span::styled(
                 "   ",
@@ -109,6 +115,16 @@ fn render_cost_legend(
             ),
             Span::raw(" "),
             Span::raw(item.clone()),
+        ]));
+        legend_lines.push(Line::from(vec![
+            Span::raw("     "),
+            Span::styled("Cost: ", Style::default().fg(palette.primary)),
+            Span::styled(
+                cost_str,
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]));
     }
 

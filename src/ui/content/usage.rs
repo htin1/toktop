@@ -131,10 +131,20 @@ fn render_usage_legend(
         legend_lines.push(Line::from(vec![
             Span::raw("     "),
             Span::styled("In: ", Style::default().fg(Color::Cyan)),
-            Span::raw(format_tokens(input_total)),
+            Span::styled(
+                format_tokens(input_total),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" "),
             Span::styled("Out: ", Style::default().fg(Color::Magenta)),
-            Span::raw(format_tokens(output_total)),
+            Span::styled(
+                format_tokens(output_total),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]));
     }
 
