@@ -1,4 +1,4 @@
-use crate::app::{App, Provider};
+use crate::app::{App, Provider, View};
 use crate::models::DailyData;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
@@ -65,7 +65,9 @@ fn render_cost_legend(
 ) {
     let mut legend_items: Vec<String> = items
         .iter()
-        .filter(|item| item_totals.get(*item).copied().unwrap_or(0.0) > shared::COST_THRESHOLD_FOR_LEGEND)
+        .filter(|item| {
+            item_totals.get(*item).copied().unwrap_or(0.0) > shared::COST_THRESHOLD_FOR_LEGEND
+        })
         .cloned()
         .collect();
 
@@ -159,7 +161,12 @@ fn render_cost_chart(
         let total_cost: f64 = model_costs.values().sum();
 
         // Date label
-        let date_label_area = Rect::new(chart_area.x, y_pos, shared::DATE_LABEL_WIDTH, shared::BAR_HEIGHT);
+        let date_label_area = Rect::new(
+            chart_area.x,
+            y_pos,
+            shared::DATE_LABEL_WIDTH,
+            shared::BAR_HEIGHT,
+        );
         f.render_widget(
             Paragraph::new(date.clone()).style(Style::default().fg(Color::White)),
             date_label_area,
@@ -178,7 +185,8 @@ fn render_cost_chart(
 
                     if segment_width > 0 {
                         let color = item_colors.get(item).copied().unwrap_or(Color::White);
-                        let segment_area = Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
+                        let segment_area =
+                            Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
 
                         let text = if segment_width > shared::MIN_SEGMENT_WIDTH_FOR_TEXT {
                             format!("${:.0}", cost)
@@ -186,7 +194,13 @@ fn render_cost_chart(
                             "".to_string()
                         };
 
-                        shared::render_stacked_bar_segment(f, segment_area, &text, color, Color::Black);
+                        shared::render_stacked_bar_segment(
+                            f,
+                            segment_area,
+                            &text,
+                            color,
+                            Color::Black,
+                        );
                         current_x += segment_width;
                     }
                 }
@@ -215,7 +229,7 @@ pub fn render_cost_view(
     palette: &ColorPalette,
 ) {
     let has_client = app.has_client(provider);
-    let error = app.error_for_provider(provider);
+    let error = app.error_for_provider(provider, View::Cost);
     let title = format!("{} - Daily Cost by Model", provider.label());
 
     if let Some(err) = error {
@@ -276,4 +290,3 @@ pub fn render_cost_view(
 
     render_cost_chart(f, data, area, &title, provider, &item_colors);
 }
-

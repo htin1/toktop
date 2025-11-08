@@ -16,4 +16,3 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         View::Usage => usage::render_usage_view(f, app, area, provider, &palette),
     }
 }
-

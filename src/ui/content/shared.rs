@@ -81,13 +81,14 @@ pub fn render_stacked_bar_segment(
     text_color: Color,
 ) {
     f.render_widget(
-        Paragraph::new(text).alignment(ratatui::layout::Alignment::Center).style(
-            Style::default()
-                .fg(text_color)
-                .bg(color)
-                .add_modifier(Modifier::BOLD),
-        ),
+        Paragraph::new(text)
+            .alignment(ratatui::layout::Alignment::Center)
+            .style(
+                Style::default()
+                    .fg(text_color)
+                    .bg(color)
+                    .add_modifier(Modifier::BOLD),
+            ),
         area,
     );
 }
-

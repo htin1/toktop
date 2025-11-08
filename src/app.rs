@@ -36,10 +36,16 @@ pub enum OptionsColumn {
     GroupBy,
 }
 
+#[derive(Default, Clone)]
+pub struct ProviderErrors {
+    pub cost: Option<String>,
+    pub usage: Option<String>,
+}
+
 pub struct FetchOutcome {
     pub data: UsageData,
-    pub openai_error: Option<String>,
-    pub anthropic_error: Option<String>,
+    pub openai_errors: ProviderErrors,
+    pub anthropic_errors: ProviderErrors,
 }
 
 pub struct App {
@@ -51,8 +57,8 @@ pub struct App {
     pub options_column: OptionsColumn,
     pub current_view: View,
     pub group_by: GroupBy,
-    pub openai_error: Option<String>,
-    pub anthropic_error: Option<String>,
+    pub openai_errors: ProviderErrors,
+    pub anthropic_errors: ProviderErrors,
     pub api_key_popup_active: Option<Provider>,
     pub api_key_input: String,
     pub animation_frame: u32,
@@ -69,8 +75,8 @@ impl App {
             options_column: OptionsColumn::Provider,
             current_view: View::Usage,
             group_by: GroupBy::Model,
-            openai_error: None,
-            anthropic_error: None,
+            openai_errors: ProviderErrors::default(),
+            anthropic_errors: ProviderErrors::default(),
             api_key_popup_active: None,
             api_key_input: String::new(),
             animation_frame: 0,
@@ -177,10 +183,12 @@ impl App {
         }
     }
 
-    pub fn error_for_provider(&self, provider: Provider) -> Option<&String> {
-        match provider {
-            Provider::OpenAI => self.openai_error.as_ref(),
-            Provider::Anthropic => self.anthropic_error.as_ref(),
+    pub fn error_for_provider(&self, provider: Provider, view: View) -> Option<&String> {
+        match (provider, view) {
+            (Provider::OpenAI, View::Cost) => self.openai_errors.cost.as_ref(),
+            (Provider::OpenAI, View::Usage) => self.openai_errors.usage.as_ref(),
+            (Provider::Anthropic, View::Cost) => self.anthropic_errors.cost.as_ref(),
+            (Provider::Anthropic, View::Usage) => self.anthropic_errors.usage.as_ref(),
         }
     }
 
@@ -247,22 +255,22 @@ pub async fn fetch_data(
     anthropic_client: Option<AnthropicClient>,
 ) -> FetchOutcome {
     let mut usage_data = UsageData::new();
-    let mut openai_error = None;
-    let mut anthropic_error = None;
+    let mut openai_errors = ProviderErrors::default();
+    let mut anthropic_errors = ProviderErrors::default();
 
     match provider {
         Provider::OpenAI => {
-            openai_error = fetch_openai_data(openai_client, &mut usage_data).await;
+            openai_errors = fetch_openai_data(openai_client, &mut usage_data).await;
         }
         Provider::Anthropic => {
-            anthropic_error = fetch_anthropic_data(anthropic_client, &mut usage_data).await;
+            anthropic_errors = fetch_anthropic_data(anthropic_client, &mut usage_data).await;
         }
     }
 
     FetchOutcome {
         data: usage_data,
-        openai_error,
-        anthropic_error,
+        openai_errors,
+        anthropic_errors,
     }
 }
 
@@ -274,11 +282,19 @@ fn usage_start_time() -> DateTime<Utc> {
         .and_utc()
 }
 
+fn append_error(target: &mut Option<String>, message: String) {
+    if let Some(existing) = target.take() {
+        *target = Some(format!("{}; {}", existing, message));
+    } else {
+        *target = Some(message);
+    }
+}
+
 async fn fetch_openai_data(
     client: Option<OpenAIClient>,
     usage_data: &mut UsageData,
-) -> Option<String> {
-    let mut openai_error = None;
+) -> ProviderErrors {
+    let mut errors = ProviderErrors::default();
     let start_time = usage_start_time();
 
     if let Some(client) = client {
@@ -306,7 +322,7 @@ async fn fetch_openai_data(
                 usage_data.openai.sort_by_key(|d| d.date);
             }
             Err(e) => {
-                openai_error = Some(e.to_string());
+                append_error(&mut errors.cost, e.to_string());
             }
         }
 
@@ -354,35 +370,28 @@ async fn fetch_openai_data(
                             usage_data.openai_api_key_names.extend(api_key_map);
                         }
                         Err(e) => {
-                            let message = format!("API key name fetch failed: {}", e);
-                            if let Some(existing) = openai_error.take() {
-                                openai_error = Some(format!("{}; {}", existing, message));
-                            } else {
-                                openai_error = Some(message);
-                            }
+                            append_error(
+                                &mut errors.usage,
+                                format!("API key name fetch failed: {}", e),
+                            );
                         }
                     }
                 }
             }
             Err(e) => {
-                let message = format!("Usage fetch failed: {}", e);
-                if let Some(existing) = openai_error.take() {
-                    openai_error = Some(format!("{}; {}", existing, message));
-                } else {
-                    openai_error = Some(message);
-                }
+                append_error(&mut errors.usage, format!("Usage fetch failed: {}", e));
             }
         }
     }
 
-    openai_error
+    errors
 }
 
 async fn fetch_anthropic_data(
     client: Option<AnthropicClient>,
     usage_data: &mut UsageData,
-) -> Option<String> {
-    let mut anthropic_error = None;
+) -> ProviderErrors {
+    let mut errors = ProviderErrors::default();
     let start_time = usage_start_time();
 
     if let Some(client) = client {
@@ -413,7 +422,7 @@ async fn fetch_anthropic_data(
                 usage_data.anthropic.sort_by_key(|d| d.date);
             }
             Err(e) => {
-                anthropic_error = Some(e.to_string());
+                append_error(&mut errors.cost, e.to_string());
             }
         }
 
@@ -475,15 +484,10 @@ async fn fetch_anthropic_data(
                 }
             }
             Err(e) => {
-                let message = format!("Usage fetch failed: {}", e);
-                if let Some(existing) = anthropic_error.take() {
-                    anthropic_error = Some(format!("{}; {}", existing, message));
-                } else {
-                    anthropic_error = Some(message);
-                }
+                append_error(&mut errors.usage, format!("Usage fetch failed: {}", e));
             }
         }
     }
 
-    anthropic_error
+    errors
 }

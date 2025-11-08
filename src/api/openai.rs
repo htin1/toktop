@@ -1,6 +1,6 @@
 use crate::models::{
-    OpenAIBucket, OpenAICostResponse, OpenAICostResult, OpenAIProjectApiKey, OpenAIProjectsResponse,
-    OpenAIUsageResponse,
+    OpenAIBucket, OpenAICostResponse, OpenAICostResult, OpenAIProjectApiKey,
+    OpenAIProjectsResponse, OpenAIUsageResponse,
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -130,16 +130,37 @@ impl OpenAIClient {
         );
 
         let mut all_buckets = Vec::new();
+        let mut endpoint_errors = Vec::new();
+        let mut successful_endpoints = 0;
 
-        // Collect results, ignoring errors for individual endpoints
-        if let Ok(mut buckets) = completions_result {
-            all_buckets.append(&mut buckets);
+        // Collect results and surface an error if every endpoint fails
+        match completions_result {
+            Ok(mut buckets) => {
+                successful_endpoints += 1;
+                all_buckets.append(&mut buckets);
+            }
+            Err(e) => endpoint_errors.push(format!("completions: {}", e)),
         }
-        if let Ok(mut buckets) = embeddings_result {
-            all_buckets.append(&mut buckets);
+        match embeddings_result {
+            Ok(mut buckets) => {
+                successful_endpoints += 1;
+                all_buckets.append(&mut buckets);
+            }
+            Err(e) => endpoint_errors.push(format!("embeddings: {}", e)),
         }
-        if let Ok(mut buckets) = images_result {
-            all_buckets.append(&mut buckets);
+        match images_result {
+            Ok(mut buckets) => {
+                successful_endpoints += 1;
+                all_buckets.append(&mut buckets);
+            }
+            Err(e) => endpoint_errors.push(format!("images: {}", e)),
+        }
+
+        if successful_endpoints == 0 {
+            return Err(anyhow::anyhow!(
+                "Failed to fetch usage from any endpoint: {}",
+                endpoint_errors.join("; ")
+            ));
         }
 
         Ok(all_buckets)
@@ -152,7 +173,7 @@ impl OpenAIClient {
         loop {
             let mut url = format!("{}/projects", self.base_url);
             if let Some(ref a) = after {
-                url = format!("{}&after={}", url, a);
+                url = format!("{}?after={}", url, a);
             }
 
             let response = self
@@ -205,7 +226,10 @@ impl OpenAIClient {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .context(format!("Failed to fetch API key {} from project {}", api_key_id, project_id))?;
+            .context(format!(
+                "Failed to fetch API key {} from project {}",
+                api_key_id, project_id
+            ))?;
 
         let status = response.status();
         let text = response.text().await.context("Failed to read response")?;
@@ -230,15 +254,15 @@ impl OpenAIClient {
         &self,
         api_key_ids: &[String],
     ) -> Result<HashMap<String, String>> {
-        let projects = self.fetch_projects().await.context("Failed to fetch projects")?;
+        let projects = self
+            .fetch_projects()
+            .await
+            .context("Failed to fetch projects")?;
         let mut api_key_map = HashMap::new();
 
         for api_key_id in api_key_ids {
             for project in &projects {
-                match self
-                    .fetch_api_key_by_id(&project.id, api_key_id)
-                    .await?
-                {
+                match self.fetch_api_key_by_id(&project.id, api_key_id).await? {
                     Some(api_key) => {
                         api_key_map.insert(api_key.id.clone(), api_key.name.clone());
                         break;

@@ -139,8 +139,12 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
             if should_fetch {
                 app_lock.loading = true;
                 match provider {
-                    app::Provider::OpenAI => app_lock.openai_error = None,
-                    app::Provider::Anthropic => app_lock.anthropic_error = None,
+                    app::Provider::OpenAI => {
+                        app_lock.openai_errors = app::ProviderErrors::default();
+                    }
+                    app::Provider::Anthropic => {
+                        app_lock.anthropic_errors = app::ProviderErrors::default();
+                    }
                 }
             }
 
@@ -161,8 +165,8 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
         let mut app_lock = app.lock().await;
         let app::FetchOutcome {
             data,
-            openai_error,
-            anthropic_error,
+            openai_errors,
+            anthropic_errors,
         } = result;
         let crate::models::UsageData {
             openai,
@@ -177,13 +181,13 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
                 app_lock.data.openai = openai;
                 app_lock.data.openai_usage = openai_usage;
                 app_lock.data.openai_api_key_names = openai_api_key_names;
-                app_lock.openai_error = openai_error;
+                app_lock.openai_errors = openai_errors;
             }
             app::Provider::Anthropic => {
                 app_lock.data.anthropic = anthropic;
                 app_lock.data.anthropic_usage = anthropic_usage;
                 app_lock.data.anthropic_api_key_names = anthropic_api_key_names;
-                app_lock.anthropic_error = anthropic_error;
+                app_lock.anthropic_errors = anthropic_errors;
             }
         }
         app_lock.loading = false;

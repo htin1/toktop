@@ -1,4 +1,4 @@
-use crate::app::{App, GroupBy, Provider};
+use crate::app::{App, GroupBy, Provider, View};
 use crate::models::DailyUsageData;
 use crate::ui::colors::ColorPalette;
 use crate::ui::content::shared;
@@ -156,7 +156,12 @@ fn render_stacked_bars(
             .sum();
 
         // Date label
-        let date_label_area = Rect::new(chart_area.x, y_pos, shared::DATE_LABEL_WIDTH, shared::BAR_HEIGHT);
+        let date_label_area = Rect::new(
+            chart_area.x,
+            y_pos,
+            shared::DATE_LABEL_WIDTH,
+            shared::BAR_HEIGHT,
+        );
         f.render_widget(
             Paragraph::new(date.clone()).style(Style::default().fg(Color::White)),
             date_label_area,
@@ -178,7 +183,8 @@ fn render_stacked_bars(
 
                     if segment_width > 0 {
                         let color = item_colors.get(item).copied().unwrap_or(Color::White);
-                        let segment_area = Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
+                        let segment_area =
+                            Rect::new(current_x, y_pos, segment_width, shared::BAR_HEIGHT);
 
                         let text = if segment_width > shared::MIN_SEGMENT_WIDTH_FOR_TOKENS {
                             format_tokens(total_item_tokens)
@@ -186,7 +192,13 @@ fn render_stacked_bars(
                             "".to_string()
                         };
 
-                        shared::render_stacked_bar_segment(f, segment_area, &text, color, Color::Black);
+                        shared::render_stacked_bar_segment(
+                            f,
+                            segment_area,
+                            &text,
+                            color,
+                            Color::Black,
+                        );
                         current_x += segment_width;
                     }
                 }
@@ -294,7 +306,7 @@ pub fn render_usage_view(
     palette: &ColorPalette,
 ) {
     let has_client = app.has_client(provider);
-    let error = app.error_for_provider(provider);
+    let error = app.error_for_provider(provider, View::Usage);
     let group_by_label = match app.group_by {
         GroupBy::Model => "Model",
         GroupBy::ApiKeys => "API Keys",
@@ -365,4 +377,3 @@ pub fn render_usage_view(
 
     render_usage_chart(f, app, area, provider, &item_colors);
 }
-
