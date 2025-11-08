@@ -7,17 +7,33 @@ mod provider;
 mod ui;
 
 use app::App;
+use clap::Parser;
 use crossterm::{
     event::{self, Event, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::{io, sync::Arc, time::Duration};
+use std::{io, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+
+#[derive(Parser, Debug)]
+#[command(about = "A terminal-based LLM cost and usage monitor")]
+struct Args {
+    #[arg(short, long)]
+    env_file: Option<PathBuf>,
+}
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    let args = Args::parse();
+
+    if let Some(env_file) = args.env_file {
+        if let Err(e) = dotenvy::from_path(&env_file) {
+            eprintln!("Warning: Failed to load env file '{}': {}", env_file.display(), e);
+        }
+    }
+
     let openai_key = std::env::var("OPENAI_ADMIN_KEY").ok();
     let anthropic_key = std::env::var("ANTHROPIC_ADMIN_KEY").ok();
 
