@@ -312,7 +312,9 @@ async fn fetch_openai_data(
 
         match usage_result {
             Ok(buckets) => {
-                for bucket in buckets {
+                let mut api_key_ids = std::collections::HashSet::new();
+
+                for bucket in &buckets {
                     let date = DateTime::from_timestamp(bucket.start_time, 0)
                         .unwrap_or(Utc::now() - Duration::days(7))
                         .date_naive()
@@ -320,7 +322,7 @@ async fn fetch_openai_data(
                         .unwrap();
                     let date = DateTime::<Utc>::from_naive_utc_and_offset(date, Utc);
 
-                    for result in bucket.results {
+                    for result in &bucket.results {
                         let input_tokens = result.input_tokens;
                         let output_tokens = result.output_tokens;
 
@@ -332,10 +334,35 @@ async fn fetch_openai_data(
                                 api_key_id: result.api_key_id.clone(),
                                 model: result.model.clone(),
                             });
+
+                            if let Some(ref api_key_id) = result.api_key_id {
+                                api_key_ids.insert(api_key_id.clone());
+                            }
                         }
                     }
                 }
                 usage_data.openai_usage.sort_by_key(|d| d.date);
+
+                let api_key_ids: Vec<String> = api_key_ids
+                    .into_iter()
+                    .filter(|id| !id.is_empty() && id != "unknown")
+                    .collect();
+
+                if !api_key_ids.is_empty() {
+                    match client.fetch_api_key_names_for_ids(&api_key_ids).await {
+                        Ok(api_key_map) => {
+                            usage_data.openai_api_key_names.extend(api_key_map);
+                        }
+                        Err(e) => {
+                            let message = format!("API key name fetch failed: {}", e);
+                            if let Some(existing) = openai_error.take() {
+                                openai_error = Some(format!("{}; {}", existing, message));
+                            } else {
+                                openai_error = Some(message);
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 let message = format!("Usage fetch failed: {}", e);

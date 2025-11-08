@@ -224,6 +224,94 @@ pub struct OpenAIUsageResult {
     pub api_key_id: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct OpenAIProjectsResponse {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub object: Option<String>,
+    pub data: Vec<OpenAIProject>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub first_id: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub last_id: Option<String>,
+    #[serde(default)]
+    pub has_more: bool,
+}
+
+#[derive(Deserialize)]
+pub struct OpenAIProject {
+    pub id: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub object: Option<String>,
+    #[allow(dead_code)]
+    pub name: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub created_at: Option<i64>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub archived_at: Option<i64>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub status: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct OpenAIProjectApiKey {
+    pub id: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub object: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub redacted_value: Option<String>,
+    pub name: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub created_at: Option<i64>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub last_used_at: Option<i64>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub owner: Option<OpenAIProjectApiKeyOwner>,
+}
+
+#[derive(Deserialize)]
+pub struct OpenAIProjectApiKeyOwner {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub r#type: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub user: Option<OpenAIProjectApiKeyOwnerUser>,
+}
+
+#[derive(Deserialize)]
+pub struct OpenAIProjectApiKeyOwnerUser {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub object: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub id: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub name: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub email: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub role: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub added_at: Option<i64>,
+}
+
 impl UsageData {
     pub fn new() -> Self {
         Self {

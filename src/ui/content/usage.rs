@@ -79,7 +79,6 @@ fn render_usage_legend(
     item_colors: &HashMap<String, Color>,
     palette: &ColorPalette,
     group_by: GroupBy,
-    provider: Provider,
     api_key_names: &HashMap<String, String>,
 ) {
     let legend_title = match group_by {
@@ -103,13 +102,7 @@ fn render_usage_legend(
         let display_item = match group_by {
             GroupBy::ApiKeys => {
                 let fallback = shared::abbreviate_api_key(item);
-                match provider {
-                    Provider::Anthropic => api_key_names.get(item).cloned().unwrap_or(fallback),
-                    Provider::OpenAI => api_key_names
-                        .get(item)
-                        .map(|name| format!("{} ({})", name, fallback))
-                        .unwrap_or(fallback),
-                }
+                api_key_names.get(item).cloned().unwrap_or(fallback)
             }
             GroupBy::Model => item.clone(),
         };
@@ -286,7 +279,6 @@ fn render_usage_chart(
         &item_colors,
         &palette,
         app.group_by,
-        provider,
         api_key_names,
     );
 

@@ -159,17 +159,31 @@ fn spawn_fetch_task(app: Arc<Mutex<App>>, force_refresh: bool) {
         let result = app::fetch_data(provider, openai_client, anthropic_client).await;
 
         let mut app_lock = app.lock().await;
+        let app::FetchOutcome {
+            data,
+            openai_error,
+            anthropic_error,
+        } = result;
+        let crate::models::UsageData {
+            openai,
+            anthropic,
+            anthropic_usage,
+            openai_usage,
+            anthropic_api_key_names,
+            openai_api_key_names,
+        } = data;
         match provider {
             app::Provider::OpenAI => {
-                app_lock.data.openai = result.data.openai;
-                app_lock.data.openai_usage = result.data.openai_usage;
-                app_lock.openai_error = result.openai_error;
+                app_lock.data.openai = openai;
+                app_lock.data.openai_usage = openai_usage;
+                app_lock.data.openai_api_key_names = openai_api_key_names;
+                app_lock.openai_error = openai_error;
             }
             app::Provider::Anthropic => {
-                app_lock.data.anthropic = result.data.anthropic;
-                app_lock.data.anthropic_usage = result.data.anthropic_usage;
-                app_lock.data.anthropic_api_key_names = result.data.anthropic_api_key_names;
-                app_lock.anthropic_error = result.anthropic_error;
+                app_lock.data.anthropic = anthropic;
+                app_lock.data.anthropic_usage = anthropic_usage;
+                app_lock.data.anthropic_api_key_names = anthropic_api_key_names;
+                app_lock.anthropic_error = anthropic_error;
             }
         }
         app_lock.loading = false;

@@ -1,8 +1,12 @@
-use crate::models::{OpenAIBucket, OpenAICostResponse, OpenAICostResult, OpenAIUsageResponse};
+use crate::models::{
+    OpenAIBucket, OpenAICostResponse, OpenAICostResult, OpenAIProjectApiKey, OpenAIProjectsResponse,
+    OpenAIUsageResponse,
+};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde_json;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct OpenAIClient {
@@ -139,5 +143,111 @@ impl OpenAIClient {
         }
 
         Ok(all_buckets)
+    }
+
+    pub async fn fetch_projects(&self) -> Result<Vec<crate::models::OpenAIProject>> {
+        let mut all_projects = Vec::new();
+        let mut after: Option<String> = None;
+
+        loop {
+            let mut url = format!("{}/projects", self.base_url);
+            if let Some(ref a) = after {
+                url = format!("{}&after={}", url, a);
+            }
+
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .send()
+                .await
+                .context("Failed to fetch projects")?;
+
+            let status = response.status();
+            let text = response.text().await.context("Failed to read response")?;
+
+            if !status.is_success() {
+                return Err(anyhow::anyhow!("API error: {} - {}", status, text));
+            }
+
+            let resp: OpenAIProjectsResponse = serde_json::from_str(&text).context(format!(
+                "Failed to parse projects response: {}",
+                text.chars().take(200).collect::<String>()
+            ))?;
+
+            all_projects.extend(resp.data);
+
+            if !resp.has_more {
+                break;
+            }
+
+            after = resp.last_id;
+        }
+
+        Ok(all_projects)
+    }
+
+    pub async fn fetch_api_key_by_id(
+        &self,
+        project_id: &str,
+        api_key_id: &str,
+    ) -> Result<Option<OpenAIProjectApiKey>> {
+        let url = format!(
+            "{}/projects/{}/api_keys/{}",
+            self.base_url, project_id, api_key_id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+            .context(format!("Failed to fetch API key {} from project {}", api_key_id, project_id))?;
+
+        let status = response.status();
+        let text = response.text().await.context("Failed to read response")?;
+
+        if status == 404 {
+            return Ok(None);
+        }
+
+        if !status.is_success() {
+            return Err(anyhow::anyhow!("API error: {} - {}", status, text));
+        }
+
+        let api_key: OpenAIProjectApiKey = serde_json::from_str(&text).context(format!(
+            "Failed to parse API key response: {}",
+            text.chars().take(200).collect::<String>()
+        ))?;
+
+        Ok(Some(api_key))
+    }
+
+    pub async fn fetch_api_key_names_for_ids(
+        &self,
+        api_key_ids: &[String],
+    ) -> Result<HashMap<String, String>> {
+        let projects = self.fetch_projects().await.context("Failed to fetch projects")?;
+        let mut api_key_map = HashMap::new();
+
+        for api_key_id in api_key_ids {
+            for project in &projects {
+                match self
+                    .fetch_api_key_by_id(&project.id, api_key_id)
+                    .await?
+                {
+                    Some(api_key) => {
+                        api_key_map.insert(api_key.id.clone(), api_key.name.clone());
+                        break;
+                    }
+                    None => continue,
+                }
+            }
+        }
+
+        Ok(api_key_map)
     }
 }
