@@ -8,7 +8,7 @@ use ratatui::{
 use std::collections::HashMap;
 
 pub const LEGEND_WIDTH: u16 = 50;
-pub const COST_THRESHOLD_FOR_LEGEND: f64 = 1.0;
+pub const COST_THRESHOLD: f64 = 1.0;
 pub const VERTICAL_BAR_SPACING: u16 = 1;
 pub const MAX_BAR_WIDTH: u16 = 20;
 pub const HORIZONTAL_SCROLLBAR_HEIGHT: u16 = 1;

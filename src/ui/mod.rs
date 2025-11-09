@@ -1,6 +1,6 @@
 mod banner;
 mod colors;
-mod content;
+pub mod content;
 mod footer;
 mod header;
 mod options;

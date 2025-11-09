@@ -1,5 +1,5 @@
 mod cost;
-mod shared;
+pub mod shared;
 mod usage;
 
 use crate::app::{App, View};
