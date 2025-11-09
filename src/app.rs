@@ -117,6 +117,7 @@ impl App {
                     let new_provider = providers[next as usize];
                     if new_provider != self.selected_provider {
                         self.selected_provider = new_provider;
+                        self.reset_filter();
                         if !self.has_client(new_provider) {
                             self.show_api_key_popup(new_provider);
                         } else {
@@ -135,9 +136,7 @@ impl App {
                         self.current_view = new_view;
                         if self.current_view == View::Cost {
                             self.group_by = GroupBy::Model;
-                            self.selected_filter = None;
-                            self.filter_cursor_index = 0;
-                            self.group_by_expanded = false;
+                            self.reset_filter();
                         }
                     }
                 }
@@ -151,11 +150,12 @@ impl App {
                         let current_idx = self.filter_cursor_index as isize;
                         let next = (current_idx + delta).rem_euclid(len);
                         self.filter_cursor_index = next as usize;
-                        
+
                         if self.filter_cursor_index == 0 {
                             self.selected_filter = None;
                         } else {
-                            self.selected_filter = filters.get(self.filter_cursor_index - 1).cloned();
+                            self.selected_filter =
+                                filters.get(self.filter_cursor_index - 1).cloned();
                         }
                     }
                 } else {
@@ -346,6 +346,12 @@ impl App {
         (openai_client, anthropic_client)
     }
 
+    pub fn reset_filter(&mut self) {
+        self.selected_filter = None;
+        self.filter_cursor_index = 0;
+        self.group_by_expanded = false;
+    }
+
     pub fn toggle_group_by_expansion(&mut self) {
         if self.options_column == OptionsColumn::GroupBy {
             self.group_by_expanded = !self.group_by_expanded;
@@ -421,5 +427,4 @@ impl App {
         let cutoff = latest_date - Duration::days(span);
         data.iter().filter(|d| d.date >= cutoff).cloned().collect()
     }
-
 }

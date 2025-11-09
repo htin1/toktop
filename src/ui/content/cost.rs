@@ -119,7 +119,10 @@ fn render_cost_legend(
         let color = item_colors.get(item).copied().unwrap_or(Color::White);
         let cost = item_totals.get(item).copied().unwrap_or(0.0);
         let cost_str = if cost >= 1.0 {
-            format!("${:.2}", cost).trim_end_matches('0').trim_end_matches('.').to_string()
+            format!("${:.2}", cost)
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_string()
         } else {
             format!("${:.2}", cost)
         };
@@ -333,7 +336,11 @@ pub fn render_cost_view(
     } else {
         String::new()
     };
-    let title = format!("{} - Daily Cost by Model{}", provider.label(), filter_suffix);
+    let title = format!(
+        "{} - Daily Cost by Model{}",
+        provider.label(),
+        filter_suffix
+    );
 
     if let Some(err) = error {
         shared::render_error_message(
@@ -390,7 +397,7 @@ pub fn render_cost_view(
     let range_filtered_data = filter_cost_data_by_range(data, app.range);
     let all_items_chart_data = process_cost_data(&range_filtered_data);
     let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
-    
+
     let filtered_data = apply_model_filter(&range_filtered_data, app.selected_filter.as_ref());
 
     if filtered_data.is_empty() {
@@ -407,10 +414,13 @@ pub fn render_cost_view(
     }
 
     let chart_data = process_cost_data(&filtered_data);
-    let item_colors: HashMap<String, Color> = chart_data.items
+    let item_colors: HashMap<String, Color> = chart_data
+        .items
         .iter()
         .filter_map(|item| {
-            all_item_colors.get(item).map(|color| (item.clone(), *color))
+            all_item_colors
+                .get(item)
+                .map(|color| (item.clone(), *color))
         })
         .collect();
 

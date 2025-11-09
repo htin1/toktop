@@ -378,16 +378,16 @@ pub fn render_usage_view(
         GroupBy::ApiKeys => "API Keys",
     };
     let filter_suffix = if let Some(ref filter) = app.selected_filter {
-                let display_name = match app.group_by {
-                    GroupBy::Model => filter.clone(),
-                    GroupBy::ApiKeys => {
-                        let api_key_names = &app.provider_info(provider).api_key_names;
-                        api_key_names
-                            .get(filter)
-                            .cloned()
-                            .unwrap_or_else(|| shared::abbreviate_api_key(filter))
-                    }
-                };
+        let display_name = match app.group_by {
+            GroupBy::Model => filter.clone(),
+            GroupBy::ApiKeys => {
+                let api_key_names = &app.provider_info(provider).api_key_names;
+                api_key_names
+                    .get(filter)
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown Key".to_string())
+            }
+        };
         format!(" - {}", display_name)
     } else {
         String::new()
@@ -454,7 +454,7 @@ pub fn render_usage_view(
     let range_filtered_data = filter_usage_data_by_range(usage_data, app.range);
     let all_items_chart_data = process_usage_data(&range_filtered_data, app.group_by);
     let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
-    
+
     let filtered_data = apply_item_filter(
         &range_filtered_data,
         app.group_by,
@@ -475,10 +475,13 @@ pub fn render_usage_view(
     }
 
     let chart_data = process_usage_data(&filtered_data, app.group_by);
-    let item_colors: HashMap<String, Color> = chart_data.items
+    let item_colors: HashMap<String, Color> = chart_data
+        .items
         .iter()
         .filter_map(|item| {
-            all_item_colors.get(item).map(|color| (item.clone(), *color))
+            all_item_colors
+                .get(item)
+                .map(|color| (item.clone(), *color))
         })
         .collect();
 

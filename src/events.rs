@@ -47,9 +47,7 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             app.toggle_group_by_expansion();
             EventAction::None
         }
-        KeyCode::Esc if popup_active => {
-            EventAction::Quit
-        }
+        KeyCode::Esc if popup_active => EventAction::Quit,
         _ if popup_active => {
             app.handle_api_key_input(key_code);
             EventAction::None

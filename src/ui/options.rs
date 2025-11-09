@@ -221,7 +221,11 @@ fn render_group_by_options(
         let is_disabled = !is_usage_view && *group_by == GroupBy::ApiKeys;
 
         let prefix = if is_expanded {
-            if is_selected { "> " } else { "  " }
+            if is_selected {
+                "> "
+            } else {
+                "  "
+            }
         } else {
             if is_active_column && is_selected && !is_disabled {
                 "> "
@@ -236,9 +240,17 @@ fn render_group_by_options(
         };
 
         let expansion_indicator = if is_expanded {
-            if is_selected { " ▼" } else { "" }
+            if is_selected {
+                " ▼"
+            } else {
+                ""
+            }
         } else {
-            if is_selected && is_active_column { " ▶" } else { "" }
+            if is_selected && is_active_column {
+                " ▶"
+            } else {
+                ""
+            }
         };
 
         let style = if is_disabled {
