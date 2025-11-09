@@ -1,6 +1,6 @@
 [package]
 name = "toktop"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A terminal-based LLM cost and usage monitor"
 license = "MIT"
