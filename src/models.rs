@@ -28,6 +28,9 @@ pub struct DailyUsageData {
     pub output_tokens: u64,
     pub api_key_id: Option<String>,
     pub model: Option<String>,
+    // Cache metrics (Anthropic only)
+    pub cache_read_input_tokens: Option<u64>,
+    pub uncached_input_tokens: Option<u64>,
 }
 
 #[derive(Deserialize)]

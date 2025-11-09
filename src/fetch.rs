@@ -89,6 +89,8 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
                                 output_tokens,
                                 api_key_id: result.api_key_id.clone(),
                                 model: result.model.clone(),
+                                cache_read_input_tokens: None,
+                                uncached_input_tokens: None,
                             });
 
                             if let Some(ref api_key_id) = result.api_key_id {
@@ -192,6 +194,8 @@ async fn fetch_anthropic_data(client: Option<AnthropicClient>) -> crate::provide
                                     output_tokens: result.output_tokens,
                                     api_key_id: result.api_key_id.clone(),
                                     model: result.model.clone(),
+                                    cache_read_input_tokens: Some(result.cache_read_input_tokens),
+                                    uncached_input_tokens: Some(result.uncached_input_tokens),
                                 });
 
                                 if let Some(ref api_key_id) = result.api_key_id {
