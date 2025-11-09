@@ -42,6 +42,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     // Calculate efficiency metrics
     let cost_per_million_tokens = calculate_cost_per_million_tokens(total_cost, total_tokens);
     let cache_hit_rate = calculate_cache_hit_rate(&info.usage_data, app.range);
+    let total_requests = calculate_total_requests(&info.usage_data, app.range);
 
     // Calculate period comparisons
     let cost_period_comparison = compare_cost_periods(&info.cost_data, app.range);
@@ -191,6 +192,33 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     // Right column: Trends & Info
     let mut right_text = vec![];
 
+    // Total requests (OpenAI only)
+    if let Some(requests) = total_requests {
+        right_text.push(Line::from(""));
+        right_text.push(Line::from(vec![
+            Span::styled(
+                format!("Total Requests ({}): ", app.range.label()),
+                Style::default().fg(Color::Gray),
+            ),
+            Span::styled(
+                format!("{}", requests),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        let avg_requests_per_day = requests as f64 / range_days;
+        right_text.push(Line::from(vec![
+            Span::styled("Average per day: ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("{:.0}", avg_requests_per_day),
+                Style::default()
+                    .fg(palette.primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
+
     // Cache hit rate (Anthropic only)
     if let Some(hit_rate) = cache_hit_rate {
         right_text.push(Line::from(""));
@@ -327,6 +355,32 @@ fn calculate_cache_hit_rate(
 
     let hit_rate = (cache_read_total as f64 / total_cacheable as f64) * 100.0;
     Some(hit_rate)
+}
+
+fn calculate_total_requests(usage_data: &[DailyUsageData], range: Range) -> Option<u64> {
+    let latest = match usage_data.iter().map(|d| d.date).max() {
+        Some(date) => date,
+        None => return None,
+    };
+    let cutoff = range_cutoff(range, latest);
+
+    let mut total = 0u64;
+    let mut has_requests = false;
+
+    for entry in usage_data {
+        if entry.date >= cutoff {
+            if let Some(requests) = entry.num_requests {
+                total += requests;
+                has_requests = true;
+            }
+        }
+    }
+
+    if has_requests {
+        Some(total)
+    } else {
+        None
+    }
 }
 
 fn compare_cost_periods(cost_data: &[DailyData], range: Range) -> Option<(f64, String)> {

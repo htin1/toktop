@@ -31,6 +31,8 @@ pub struct DailyUsageData {
     // Cache metrics (Anthropic only)
     pub cache_read_input_tokens: Option<u64>,
     pub uncached_input_tokens: Option<u64>,
+    // Request count (OpenAI only)
+    pub num_requests: Option<u64>,
 }
 
 #[derive(Deserialize)]
