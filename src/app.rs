@@ -394,44 +394,48 @@ impl App {
         let filtered_cost_data = self.filter_cost_data_by_range(&info.cost_data);
 
         let filters: Vec<String> = match self.group_by {
-            GroupBy::Model => {
-                match self.current_view {
-                    View::Cost => {
-                        let mut model_totals: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-                        for cost in &filtered_cost_data {
-                            if let Some(ref line_item) = cost.line_item {
-                                let line_item = line_item.trim();
-                                if !line_item.is_empty() {
-                                    *model_totals.entry(line_item.to_string()).or_insert(0.0) += cost.cost;
-                                }
+            GroupBy::Model => match self.current_view {
+                View::Cost => {
+                    let mut model_totals: std::collections::HashMap<String, f64> =
+                        std::collections::HashMap::new();
+                    for cost in &filtered_cost_data {
+                        if let Some(ref line_item) = cost.line_item {
+                            let line_item = line_item.trim();
+                            if !line_item.is_empty() {
+                                *model_totals.entry(line_item.to_string()).or_insert(0.0) +=
+                                    cost.cost;
                             }
                         }
-                        model_totals
-                            .into_iter()
-                            .filter(|(_, total)| *total >= crate::ui::content::shared::COST_THRESHOLD)
-                            .map(|(model, _)| model)
-                            .collect()
                     }
-                    View::Usage => {
-                        let mut models_with_usage = std::collections::HashSet::new();
-                        for usage in &filtered_usage_data {
-                            if let Some(ref model) = usage.model {
-                                let model = model.trim();
-                                if !model.is_empty() && (usage.input_tokens > 0 || usage.output_tokens > 0) {
-                                    models_with_usage.insert(model.to_string());
-                                }
-                            }
-                        }
-                        models_with_usage.into_iter().collect()
-                    }
+                    model_totals
+                        .into_iter()
+                        .filter(|(_, total)| *total >= crate::ui::content::shared::COST_THRESHOLD)
+                        .map(|(model, _)| model)
+                        .collect()
                 }
-            }
+                View::Usage => {
+                    let mut models_with_usage = std::collections::HashSet::new();
+                    for usage in &filtered_usage_data {
+                        if let Some(ref model) = usage.model {
+                            let model = model.trim();
+                            if !model.is_empty()
+                                && (usage.input_tokens > 0 || usage.output_tokens > 0)
+                            {
+                                models_with_usage.insert(model.to_string());
+                            }
+                        }
+                    }
+                    models_with_usage.into_iter().collect()
+                }
+            },
             GroupBy::ApiKeys => {
                 let mut api_keys_with_usage = std::collections::HashSet::new();
                 for usage in &filtered_usage_data {
                     if let Some(ref api_key_id) = usage.api_key_id {
                         let api_key_id = api_key_id.trim();
-                        if !api_key_id.is_empty() && (usage.input_tokens > 0 || usage.output_tokens > 0) {
+                        if !api_key_id.is_empty()
+                            && (usage.input_tokens > 0 || usage.output_tokens > 0)
+                        {
                             api_keys_with_usage.insert(api_key_id.to_string());
                         }
                     }

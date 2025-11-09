@@ -95,9 +95,7 @@ fn render_cost_legend(
 ) {
     let mut legend_items: Vec<String> = items
         .iter()
-        .filter(|item| {
-            item_totals.get(*item).copied().unwrap_or(0.0) >= shared::COST_THRESHOLD
-        })
+        .filter(|item| item_totals.get(*item).copied().unwrap_or(0.0) >= shared::COST_THRESHOLD)
         .cloned()
         .collect();
 
