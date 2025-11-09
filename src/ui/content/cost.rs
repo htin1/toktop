@@ -157,6 +157,7 @@ fn render_cost_legend(
 
 fn render_cost_chart(
     f: &mut Frame,
+    app: &mut App,
     data: &[DailyData],
     area: Rect,
     title: &str,
@@ -168,6 +169,7 @@ fn render_cost_chart(
     let chart_data = process_cost_data(data);
 
     if chart_data.dates.is_empty() {
+        app.chart_scrollbar_visible = false;
         shared::render_empty_state(f, area, title, "No data available");
         return None;
     }
@@ -207,9 +209,11 @@ fn render_cost_chart(
         scroll_offset,
     ) {
         Some(layout) => {
-            if chart_data.dates.len() > layout.visible_bars
-                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT
-            {
+            let scrollbar_visible = chart_data.dates.len() > layout.visible_bars
+                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT;
+            app.chart_scrollbar_visible = scrollbar_visible;
+
+            if scrollbar_visible {
                 let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT.min(chart_area.height);
                 let scrollbar_area = Rect::new(
                     chart_area.x,
@@ -229,6 +233,7 @@ fn render_cost_chart(
             Some(layout.start_index)
         }
         None => {
+            app.chart_scrollbar_visible = false;
             shared::render_empty_state(
                 f,
                 chart_area,
@@ -472,6 +477,7 @@ pub fn render_cost_view(
 
     if let Some(actual_scroll) = render_cost_chart(
         f,
+        app,
         &filtered_data,
         area,
         &title,

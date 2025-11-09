@@ -311,7 +311,7 @@ fn render_vertical_stacked_bars(
 
 fn render_usage_chart(
     f: &mut Frame,
-    app: &App,
+    app: &mut App,
     area: Rect,
     provider: Provider,
     item_colors: &HashMap<String, Color>,
@@ -322,6 +322,7 @@ fn render_usage_chart(
     let palette = ColorPalette::for_provider(provider);
 
     if chart_data.dates.is_empty() {
+        app.chart_scrollbar_visible = false;
         shared::render_empty_state(f, area, &title, "No data available");
         return None;
     }
@@ -370,9 +371,11 @@ fn render_usage_chart(
         scroll_offset,
     ) {
         Some(layout) => {
-            if chart_data.dates.len() > layout.visible_bars
-                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT
-            {
+            let scrollbar_visible = chart_data.dates.len() > layout.visible_bars
+                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT;
+            app.chart_scrollbar_visible = scrollbar_visible;
+
+            if scrollbar_visible {
                 let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT.min(chart_area.height);
                 let scrollbar_area = Rect::new(
                     chart_area.x,
@@ -392,6 +395,7 @@ fn render_usage_chart(
             Some(layout.start_index)
         }
         None => {
+            app.chart_scrollbar_visible = false;
             shared::render_empty_state(
                 f,
                 chart_area,

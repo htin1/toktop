@@ -60,6 +60,7 @@ pub struct App {
     pub group_by_expanded: bool,
     pub selected_filter: Option<String>,
     pub filter_cursor_index: usize,
+    pub chart_scrollbar_visible: bool,
 }
 
 impl App {
@@ -81,6 +82,7 @@ impl App {
             group_by_expanded: false,
             selected_filter: None,
             filter_cursor_index: 0,
+            chart_scrollbar_visible: false,
         }
     }
 

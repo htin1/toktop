@@ -51,6 +51,7 @@ toktop
 
 - `←/→` - Switch between options columns (Provider, Metrics, Date Range, Group By)
 - `↑/↓` - Choosing options
+- `h/l` - Scrolling charts if scroll bar is present
 - `r` - Refresh data
 - `q` - Quit the application
 
