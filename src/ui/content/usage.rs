@@ -31,6 +31,36 @@ fn filter_usage_data_by_range(data: &[DailyUsageData], range: Range) -> Vec<Dail
     data.iter().filter(|d| d.date >= cutoff).cloned().collect()
 }
 
+fn apply_item_filter(
+    data: &[DailyUsageData],
+    group_by: GroupBy,
+    selected_filter: Option<&String>,
+) -> Vec<DailyUsageData> {
+    if let Some(filter) = selected_filter {
+        data.iter()
+            .filter(|d| match group_by {
+                GroupBy::Model => d
+                    .model
+                    .as_ref()
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s == filter.as_str())
+                    .unwrap_or(false),
+                GroupBy::ApiKeys => d
+                    .api_key_id
+                    .as_ref()
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s == filter.as_str())
+                    .unwrap_or(false),
+            })
+            .cloned()
+            .collect()
+    } else {
+        data.to_vec()
+    }
+}
+
 fn process_usage_data(data: &[DailyUsageData], group_by: GroupBy) -> UsageChartData {
     let mut daily_tokens: HashMap<String, HashMap<String, (u64, u64)>> = HashMap::new();
     let mut item_totals: HashMap<String, (u64, u64)> = HashMap::new();
@@ -280,17 +310,9 @@ fn render_usage_chart(
     provider: Provider,
     item_colors: &HashMap<String, Color>,
     chart_data: &UsageChartData,
+    title: &str,
 ) {
     let palette = ColorPalette::for_provider(provider);
-    let group_by_label = match app.group_by {
-        GroupBy::Model => "Model",
-        GroupBy::ApiKeys => "API Keys",
-    };
-    let title = format!(
-        "{} - Daily Token Usage by {}",
-        provider.label(),
-        group_by_label
-    );
 
     if chart_data.dates.is_empty() {
         shared::render_empty_state(f, area, &title, "No data available");
@@ -355,10 +377,26 @@ pub fn render_usage_view(
         GroupBy::Model => "Model",
         GroupBy::ApiKeys => "API Keys",
     };
+    let filter_suffix = if let Some(ref filter) = app.selected_filter {
+                let display_name = match app.group_by {
+                    GroupBy::Model => filter.clone(),
+                    GroupBy::ApiKeys => {
+                        let api_key_names = &app.provider_info(provider).api_key_names;
+                        api_key_names
+                            .get(filter)
+                            .cloned()
+                            .unwrap_or_else(|| shared::abbreviate_api_key(filter))
+                    }
+                };
+        format!(" - {}", display_name)
+    } else {
+        String::new()
+    };
     let title = format!(
-        "{} - Daily Token Usage by {}",
+        "{} - Daily Token Usage by {}{}",
         provider.label(),
-        group_by_label
+        group_by_label,
+        filter_suffix
     );
 
     if let Some(err) = error {
@@ -413,7 +451,15 @@ pub fn render_usage_view(
         return;
     }
 
-    let filtered_data = filter_usage_data_by_range(usage_data, app.range);
+    let range_filtered_data = filter_usage_data_by_range(usage_data, app.range);
+    let all_items_chart_data = process_usage_data(&range_filtered_data, app.group_by);
+    let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
+    
+    let filtered_data = apply_item_filter(
+        &range_filtered_data,
+        app.group_by,
+        app.selected_filter.as_ref(),
+    );
 
     if filtered_data.is_empty() {
         shared::render_empty_state(
@@ -429,7 +475,12 @@ pub fn render_usage_view(
     }
 
     let chart_data = process_usage_data(&filtered_data, app.group_by);
-    let item_colors = shared::create_color_mapping(&chart_data.items, palette);
+    let item_colors: HashMap<String, Color> = chart_data.items
+        .iter()
+        .filter_map(|item| {
+            all_item_colors.get(item).map(|color| (item.clone(), *color))
+        })
+        .collect();
 
-    render_usage_chart(f, app, area, provider, &item_colors, &chart_data);
+    render_usage_chart(f, app, area, provider, &item_colors, &chart_data, &title);
 }

@@ -1,6 +1,7 @@
 use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
-use crate::models::DailyData;
+use crate::models::{DailyData, DailyUsageData};
 use crate::provider::{Provider, ProviderClient, ProviderInfo};
+use chrono::Duration;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -56,6 +57,9 @@ pub struct App {
     pub api_key_popup_active: Option<Provider>,
     pub api_key_input: String,
     pub animation_frame: u32,
+    pub group_by_expanded: bool,
+    pub selected_filter: Option<String>,
+    pub filter_cursor_index: usize,
 }
 
 impl App {
@@ -74,6 +78,9 @@ impl App {
             api_key_popup_active: None,
             api_key_input: String::new(),
             animation_frame: 0,
+            group_by_expanded: false,
+            selected_filter: None,
+            filter_cursor_index: 0,
         }
     }
 
@@ -90,7 +97,11 @@ impl App {
             .position(|&c| c == self.options_column)
             .unwrap_or(0) as isize;
         let next = (current_idx + delta).rem_euclid(len);
-        self.options_column = columns[next as usize];
+        let new_column = columns[next as usize];
+        if new_column != self.options_column {
+            self.group_by_expanded = false;
+        }
+        self.options_column = new_column;
     }
 
     pub fn move_column_cursor(&mut self, delta: isize) {
@@ -124,20 +135,45 @@ impl App {
                         self.current_view = new_view;
                         if self.current_view == View::Cost {
                             self.group_by = GroupBy::Model;
+                            self.selected_filter = None;
+                            self.filter_cursor_index = 0;
+                            self.group_by_expanded = false;
                         }
                     }
                 }
             }
             OptionsColumn::GroupBy => {
-                if self.current_view == View::Usage {
-                    let group_by_options = [GroupBy::Model, GroupBy::ApiKeys];
-                    let len = group_by_options.len() as isize;
-                    if let Some(idx) = group_by_options
-                        .iter()
-                        .position(|&group| group == self.group_by)
-                    {
-                        let next = (idx as isize + delta).rem_euclid(len);
-                        self.group_by = group_by_options[next as usize];
+                if self.group_by_expanded {
+                    let filters = self.get_available_filters();
+                    let total_items = filters.len() + 1;
+                    if total_items > 0 {
+                        let len = total_items as isize;
+                        let current_idx = self.filter_cursor_index as isize;
+                        let next = (current_idx + delta).rem_euclid(len);
+                        self.filter_cursor_index = next as usize;
+                        
+                        if self.filter_cursor_index == 0 {
+                            self.selected_filter = None;
+                        } else {
+                            self.selected_filter = filters.get(self.filter_cursor_index - 1).cloned();
+                        }
+                    }
+                } else {
+                    if self.current_view == View::Usage {
+                        let group_by_options = [GroupBy::Model, GroupBy::ApiKeys];
+                        let len = group_by_options.len() as isize;
+                        if let Some(idx) = group_by_options
+                            .iter()
+                            .position(|&group| group == self.group_by)
+                        {
+                            let next = (idx as isize + delta).rem_euclid(len);
+                            let new_group_by = group_by_options[next as usize];
+                            if new_group_by != self.group_by {
+                                self.group_by = new_group_by;
+                                self.selected_filter = None;
+                                self.filter_cursor_index = 0;
+                            }
+                        }
                     }
                 }
             }
@@ -309,4 +345,81 @@ impl App {
             });
         (openai_client, anthropic_client)
     }
+
+    pub fn toggle_group_by_expansion(&mut self) {
+        if self.options_column == OptionsColumn::GroupBy {
+            self.group_by_expanded = !self.group_by_expanded;
+            if self.group_by_expanded {
+                self.filter_cursor_index = 0;
+                self.selected_filter = None;
+            }
+        }
+    }
+
+    pub fn get_available_filters(&self) -> Vec<String> {
+        let provider = self.current_provider();
+        let info = self.provider_info(provider);
+        let filtered_usage_data = self.filter_usage_data_by_range(&info.usage_data);
+        let filtered_cost_data = self.filter_cost_data_by_range(&info.cost_data);
+
+        let filters: Vec<String> = match self.group_by {
+            GroupBy::Model => {
+                let mut models = std::collections::HashSet::new();
+                for usage in &filtered_usage_data {
+                    if let Some(ref model) = usage.model {
+                        let model = model.trim();
+                        if !model.is_empty() {
+                            models.insert(model.to_string());
+                        }
+                    }
+                }
+                for cost in &filtered_cost_data {
+                    if let Some(ref line_item) = cost.line_item {
+                        let line_item = line_item.trim();
+                        if !line_item.is_empty() {
+                            models.insert(line_item.to_string());
+                        }
+                    }
+                }
+                models.into_iter().collect()
+            }
+            GroupBy::ApiKeys => {
+                let mut api_keys = std::collections::HashSet::new();
+                for usage in &filtered_usage_data {
+                    if let Some(ref api_key_id) = usage.api_key_id {
+                        let api_key_id = api_key_id.trim();
+                        if !api_key_id.is_empty() {
+                            api_keys.insert(api_key_id.to_string());
+                        }
+                    }
+                }
+                api_keys.into_iter().collect()
+            }
+        };
+
+        let mut sorted_filters = filters;
+        sorted_filters.sort();
+        sorted_filters
+    }
+
+    fn filter_usage_data_by_range(&self, data: &[DailyUsageData]) -> Vec<DailyUsageData> {
+        let latest_date = match data.iter().map(|d| d.date).max() {
+            Some(date) => date,
+            None => return Vec::new(),
+        };
+        let span = self.range.days().saturating_sub(1);
+        let cutoff = latest_date - Duration::days(span);
+        data.iter().filter(|d| d.date >= cutoff).cloned().collect()
+    }
+
+    fn filter_cost_data_by_range(&self, data: &[DailyData]) -> Vec<DailyData> {
+        let latest_date = match data.iter().map(|d| d.date).max() {
+            Some(date) => date,
+            None => return Vec::new(),
+        };
+        let span = self.range.days().saturating_sub(1);
+        let cutoff = latest_date - Duration::days(span);
+        data.iter().filter(|d| d.date >= cutoff).cloned().collect()
+    }
+
 }

@@ -30,6 +30,24 @@ fn filter_cost_data_by_range(data: &[DailyData], range: Range) -> Vec<DailyData>
     data.iter().filter(|d| d.date >= cutoff).cloned().collect()
 }
 
+fn apply_model_filter(data: &[DailyData], selected_filter: Option<&String>) -> Vec<DailyData> {
+    if let Some(filter) = selected_filter {
+        data.iter()
+            .filter(|d| {
+                d.line_item
+                    .as_ref()
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s == filter.as_str())
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    } else {
+        data.to_vec()
+    }
+}
+
 fn process_cost_data(data: &[DailyData]) -> CostChartData {
     let mut daily_costs: HashMap<String, HashMap<String, f64>> = HashMap::new();
     let mut item_totals: HashMap<String, f64> = HashMap::new();
@@ -310,7 +328,12 @@ pub fn render_cost_view(
 ) {
     let has_client = app.has_client(provider);
     let error = app.error_for_provider(provider, View::Cost);
-    let title = format!("{} - Daily Cost by Model", provider.label());
+    let filter_suffix = if let Some(ref filter) = app.selected_filter {
+        format!(" - {}", filter)
+    } else {
+        String::new()
+    };
+    let title = format!("{} - Daily Cost by Model{}", provider.label(), filter_suffix);
 
     if let Some(err) = error {
         shared::render_error_message(
@@ -364,7 +387,11 @@ pub fn render_cost_view(
         return;
     }
 
-    let filtered_data = filter_cost_data_by_range(data, app.range);
+    let range_filtered_data = filter_cost_data_by_range(data, app.range);
+    let all_items_chart_data = process_cost_data(&range_filtered_data);
+    let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
+    
+    let filtered_data = apply_model_filter(&range_filtered_data, app.selected_filter.as_ref());
 
     if filtered_data.is_empty() {
         shared::render_empty_state(
@@ -380,7 +407,12 @@ pub fn render_cost_view(
     }
 
     let chart_data = process_cost_data(&filtered_data);
-    let item_colors = shared::create_color_mapping(&chart_data.items, palette);
+    let item_colors: HashMap<String, Color> = chart_data.items
+        .iter()
+        .filter_map(|item| {
+            all_item_colors.get(item).map(|color| (item.clone(), *color))
+        })
+        .collect();
 
     render_cost_chart(f, &filtered_data, area, &title, provider, &item_colors);
 }

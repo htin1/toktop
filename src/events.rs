@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::app::{App, OptionsColumn};
 use crossterm::event::KeyCode;
 
 pub enum EventAction {
@@ -42,6 +42,10 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             } else {
                 EventAction::None
             }
+        }
+        KeyCode::Enter if !popup_active && app.options_column == OptionsColumn::GroupBy => {
+            app.toggle_group_by_expansion();
+            EventAction::None
         }
         KeyCode::Esc if popup_active => {
             EventAction::Quit
