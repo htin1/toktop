@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub const LEGEND_WIDTH: u16 = 50;
 pub const COST_THRESHOLD_FOR_LEGEND: f64 = 1.0;
 pub const VERTICAL_BAR_SPACING: u16 = 1;
+pub const MAX_BAR_WIDTH: u16 = 20;
 
 #[derive(Clone, Copy)]
 pub struct VerticalBarLayout {
@@ -43,7 +44,7 @@ pub fn vertical_bar_layout(total_bars: usize, area_width: u16) -> Option<Vertica
 
         let available_width = (area_width as usize).saturating_sub(total_spacing);
         let mut bar_width = (available_width / visible).max(min_bar_width as usize) as u16;
-        bar_width = bar_width.min(area_width);
+        bar_width = bar_width.min(area_width).min(MAX_BAR_WIDTH);
 
         let required = visible * bar_width as usize + total_spacing;
         if required <= area_width as usize {
