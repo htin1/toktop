@@ -69,7 +69,7 @@ async fn main() -> io::Result<()> {
         {
             let mut app_lock = app.lock().await;
             app_lock.update_animation_frame();
-            terminal.draw(|f| ui::render(f, &app_lock))?;
+            terminal.draw(|f| ui::render(f, &mut app_lock))?;
         }
 
         if event::poll(Duration::from_millis(50))? {

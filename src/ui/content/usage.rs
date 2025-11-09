@@ -190,26 +190,32 @@ fn render_vertical_stacked_bars(
     chart_data: &UsageChartData,
     item_colors: &HashMap<String, Color>,
     max_total: u64,
-) -> bool {
+    scroll_offset: usize,
+) -> Option<shared::VerticalBarLayout> {
     if chart_area.width == 0 || chart_area.height <= 1 || max_total == 0 {
-        return false;
+        return None;
     }
 
     let label_height: u16 = 1;
     let value_label_height: u16 = 1;
+    let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT;
     let bar_area_height = chart_area
         .height
         .saturating_sub(label_height)
         .saturating_sub(value_label_height)
-        .saturating_sub(1);
+        .saturating_sub(scrollbar_height);
     if bar_area_height == 0 {
-        return false;
+        return None;
     }
     let bars_y = chart_area.y + value_label_height;
 
-    let layout = match shared::vertical_bar_layout(chart_data.dates.len(), chart_area.width) {
+    let layout = match shared::vertical_bar_layout(
+        chart_data.dates.len(),
+        chart_area.width,
+        scroll_offset,
+    ) {
         Some(layout) => layout,
-        None => return false,
+        None => return None,
     };
 
     let end_index = layout.start_index + layout.visible_bars;
@@ -300,7 +306,7 @@ fn render_vertical_stacked_bars(
         );
     }
 
-    true
+    Some(layout)
 }
 
 fn render_usage_chart(
@@ -311,12 +317,13 @@ fn render_usage_chart(
     item_colors: &HashMap<String, Color>,
     chart_data: &UsageChartData,
     title: &str,
-) {
+    scroll_offset: usize,
+) -> Option<usize> {
     let palette = ColorPalette::for_provider(provider);
 
     if chart_data.dates.is_empty() {
         shared::render_empty_state(f, area, &title, "No data available");
-        return;
+        return None;
     }
 
     let max_total = chart_data
@@ -354,25 +361,57 @@ fn render_usage_chart(
     );
 
     let chart_area = chunks[0];
-    if !render_vertical_stacked_bars(f, chart_area, chart_data, &item_colors, max_total) {
-        shared::render_empty_state(
-            f,
-            chart_area,
-            "Chart",
-            "Not enough space to render usage chart",
-        );
+    match render_vertical_stacked_bars(
+        f,
+        chart_area,
+        chart_data,
+        &item_colors,
+        max_total,
+        scroll_offset,
+    ) {
+        Some(layout) => {
+            if chart_data.dates.len() > layout.visible_bars
+                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT
+            {
+                let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT.min(chart_area.height);
+                let scrollbar_area = Rect::new(
+                    chart_area.x,
+                    chart_area.y + chart_area.height.saturating_sub(scrollbar_height),
+                    chart_area.width,
+                    scrollbar_height,
+                );
+                shared::render_horizontal_scrollbar(
+                    f,
+                    scrollbar_area,
+                    chart_data.dates.len(),
+                    layout.visible_bars,
+                    layout.start_index,
+                    palette.accent,
+                );
+            }
+            Some(layout.start_index)
+        }
+        None => {
+            shared::render_empty_state(
+                f,
+                chart_area,
+                "Chart",
+                "Not enough space to render usage chart",
+            );
+            None
+        }
     }
 }
 
 pub fn render_usage_view(
     f: &mut Frame,
-    app: &App,
+    app: &mut App,
     area: Rect,
     provider: Provider,
     palette: &ColorPalette,
 ) {
     let has_client = app.has_client(provider);
-    let error = app.error_for_provider(provider, View::Usage);
+    let error = app.error_for_provider(provider, View::Usage).cloned();
     let group_by_label = match app.group_by {
         GroupBy::Model => "Model",
         GroupBy::ApiKeys => "API Keys",
@@ -415,20 +454,23 @@ pub fn render_usage_view(
         return;
     }
 
-    let usage_data = match app.usage_data_for_provider(provider) {
-        Some(values) => values,
-        None => {
-            shared::render_empty_state(
-                f,
-                area,
-                &title,
-                &format!("{} Usage data is not wired up yet.", provider.label()),
-            );
-            return;
-        }
+    let range_filtered_data = {
+        let usage_data = match app.usage_data_for_provider(provider) {
+            Some(values) => values,
+            None => {
+                shared::render_empty_state(
+                    f,
+                    area,
+                    &title,
+                    &format!("{} Usage data is not wired up yet.", provider.label()),
+                );
+                return;
+            }
+        };
+        filter_usage_data_by_range(usage_data, app.range)
     };
 
-    if usage_data.is_empty() && app.loading {
+    if range_filtered_data.is_empty() && app.loading {
         shared::render_empty_state(
             f,
             area,
@@ -438,7 +480,7 @@ pub fn render_usage_view(
         return;
     }
 
-    if usage_data.is_empty() {
+    if range_filtered_data.is_empty() {
         shared::render_empty_state(
             f,
             area,
@@ -451,7 +493,6 @@ pub fn render_usage_view(
         return;
     }
 
-    let range_filtered_data = filter_usage_data_by_range(usage_data, app.range);
     let all_items_chart_data = process_usage_data(&range_filtered_data, app.group_by);
     let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
 
@@ -485,5 +526,22 @@ pub fn render_usage_view(
         })
         .collect();
 
-    render_usage_chart(f, app, area, provider, &item_colors, &chart_data, &title);
+    let scroll_offset = {
+        let info = app.provider_info(provider);
+        info.usage_chart_scroll
+    };
+
+    if let Some(actual_scroll) = render_usage_chart(
+        f,
+        app,
+        area,
+        provider,
+        &item_colors,
+        &chart_data,
+        &title,
+        scroll_offset,
+    ) {
+        let info = app.provider_info_mut(provider);
+        info.usage_chart_scroll = actual_scroll;
+    }
 }

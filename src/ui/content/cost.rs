@@ -162,13 +162,14 @@ fn render_cost_chart(
     title: &str,
     provider: Provider,
     item_colors: &HashMap<String, Color>,
-) {
+    scroll_offset: usize,
+) -> Option<usize> {
     let palette = ColorPalette::for_provider(provider);
     let chart_data = process_cost_data(data);
 
     if chart_data.dates.is_empty() {
         shared::render_empty_state(f, area, title, "No data available");
-        return;
+        return None;
     }
 
     let max_total = chart_data
@@ -197,13 +198,45 @@ fn render_cost_chart(
     );
 
     let chart_area = chunks[0];
-    if !render_vertical_cost_bars(f, chart_area, &chart_data, item_colors, max_total) {
-        shared::render_empty_state(
-            f,
-            chart_area,
-            "Chart",
-            "Not enough space to render cost chart",
-        );
+    match render_vertical_cost_bars(
+        f,
+        chart_area,
+        &chart_data,
+        item_colors,
+        max_total,
+        scroll_offset,
+    ) {
+        Some(layout) => {
+            if chart_data.dates.len() > layout.visible_bars
+                && chart_area.height >= shared::HORIZONTAL_SCROLLBAR_HEIGHT
+            {
+                let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT.min(chart_area.height);
+                let scrollbar_area = Rect::new(
+                    chart_area.x,
+                    chart_area.y + chart_area.height.saturating_sub(scrollbar_height),
+                    chart_area.width,
+                    scrollbar_height,
+                );
+                shared::render_horizontal_scrollbar(
+                    f,
+                    scrollbar_area,
+                    chart_data.dates.len(),
+                    layout.visible_bars,
+                    layout.start_index,
+                    palette.accent,
+                );
+            }
+            Some(layout.start_index)
+        }
+        None => {
+            shared::render_empty_state(
+                f,
+                chart_area,
+                "Chart",
+                "Not enough space to render cost chart",
+            );
+            None
+        }
     }
 }
 
@@ -213,26 +246,32 @@ fn render_vertical_cost_bars(
     chart_data: &CostChartData,
     item_colors: &HashMap<String, Color>,
     max_total: f64,
-) -> bool {
+    scroll_offset: usize,
+) -> Option<shared::VerticalBarLayout> {
     if chart_area.width == 0 || chart_area.height <= 1 || max_total <= 0.0 {
-        return false;
+        return None;
     }
 
     let label_height: u16 = 1;
     let value_label_height: u16 = 1;
+    let scrollbar_height = shared::HORIZONTAL_SCROLLBAR_HEIGHT;
     let bar_area_height = chart_area
         .height
         .saturating_sub(label_height)
         .saturating_sub(value_label_height)
-        .saturating_sub(1);
+        .saturating_sub(scrollbar_height);
     if bar_area_height == 0 {
-        return false;
+        return None;
     }
     let bars_y = chart_area.y + value_label_height;
 
-    let layout = match shared::vertical_bar_layout(chart_data.dates.len(), chart_area.width) {
+    let layout = match shared::vertical_bar_layout(
+        chart_data.dates.len(),
+        chart_area.width,
+        scroll_offset,
+    ) {
         Some(layout) => layout,
-        None => return false,
+        None => return None,
     };
 
     let end_index = layout.start_index + layout.visible_bars;
@@ -319,18 +358,18 @@ fn render_vertical_cost_bars(
         );
     }
 
-    true
+    Some(layout)
 }
 
 pub fn render_cost_view(
     f: &mut Frame,
-    app: &App,
+    app: &mut App,
     area: Rect,
     provider: Provider,
     palette: &ColorPalette,
 ) {
     let has_client = app.has_client(provider);
-    let error = app.error_for_provider(provider, View::Cost);
+    let error = app.error_for_provider(provider, View::Cost).cloned();
     let filter_suffix = if let Some(ref filter) = app.selected_filter {
         format!(" - {}", filter)
     } else {
@@ -358,20 +397,23 @@ pub fn render_cost_view(
         return;
     }
 
-    let data = match app.data_for_provider(provider) {
-        Some(values) => values,
-        None => {
-            shared::render_empty_state(
-                f,
-                area,
-                &title,
-                &format!("{} Cost data is not wired up yet.", provider.label()),
-            );
-            return;
-        }
+    let range_filtered_data = {
+        let data = match app.data_for_provider(provider) {
+            Some(values) => values,
+            None => {
+                shared::render_empty_state(
+                    f,
+                    area,
+                    &title,
+                    &format!("{} Cost data is not wired up yet.", provider.label()),
+                );
+                return;
+            }
+        };
+        filter_cost_data_by_range(data, app.range)
     };
 
-    if data.is_empty() && app.loading {
+    if range_filtered_data.is_empty() && app.loading {
         shared::render_empty_state(
             f,
             area,
@@ -381,7 +423,7 @@ pub fn render_cost_view(
         return;
     }
 
-    if data.is_empty() {
+    if range_filtered_data.is_empty() {
         shared::render_empty_state(
             f,
             area,
@@ -394,7 +436,6 @@ pub fn render_cost_view(
         return;
     }
 
-    let range_filtered_data = filter_cost_data_by_range(data, app.range);
     let all_items_chart_data = process_cost_data(&range_filtered_data);
     let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
 
@@ -424,5 +465,21 @@ pub fn render_cost_view(
         })
         .collect();
 
-    render_cost_chart(f, &filtered_data, area, &title, provider, &item_colors);
+    let scroll_offset = {
+        let info = app.provider_info(provider);
+        info.cost_chart_scroll
+    };
+
+    if let Some(actual_scroll) = render_cost_chart(
+        f,
+        &filtered_data,
+        area,
+        &title,
+        provider,
+        &item_colors,
+        scroll_offset,
+    ) {
+        let info = app.provider_info_mut(provider);
+        info.cost_chart_scroll = actual_scroll;
+    }
 }

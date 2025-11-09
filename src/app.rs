@@ -188,6 +188,29 @@ impl App {
         }
     }
 
+    pub fn scroll_chart(&mut self, delta: isize) {
+        let provider = self.current_provider();
+        let current_view = self.current_view;
+        let info = self.provider_info_mut(provider);
+        let (scroll_value, data_len) = match current_view {
+            View::Cost => (&mut info.cost_chart_scroll, info.cost_data.len()),
+            View::Usage => (&mut info.usage_chart_scroll, info.usage_data.len()),
+        };
+
+        if delta == 0 || data_len == 0 {
+            return;
+        }
+
+        if delta < 0 {
+            let amount = delta.unsigned_abs() as usize;
+            *scroll_value = scroll_value.saturating_sub(amount);
+        } else {
+            let amount = delta as usize;
+            let max_position = data_len.saturating_sub(1);
+            *scroll_value = scroll_value.saturating_add(amount).min(max_position);
+        }
+    }
+
     pub fn set_openai_client(&mut self, api_key: String) {
         let info = self.providers.get_mut(&Provider::OpenAI).unwrap();
         info.client = Some(ProviderClient::OpenAI(OpenAIClient::new(api_key)));

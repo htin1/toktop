@@ -323,10 +323,7 @@ fn calculate_cost_per_million_tokens(total_cost: f64, total_tokens: u64) -> Opti
     Some(total_cost / tokens_in_millions)
 }
 
-fn calculate_cache_hit_rate(
-    usage_data: &[DailyUsageData],
-    range: Range,
-) -> Option<f64> {
+fn calculate_cache_hit_rate(usage_data: &[DailyUsageData], range: Range) -> Option<f64> {
     let latest = match usage_data.iter().map(|d| d.date).max() {
         Some(date) => date,
         None => return None,
@@ -338,10 +335,9 @@ fn calculate_cache_hit_rate(
 
     for entry in usage_data {
         if entry.date >= cutoff {
-            if let (Some(cache_read), Some(uncached)) = (
-                entry.cache_read_input_tokens,
-                entry.uncached_input_tokens,
-            ) {
+            if let (Some(cache_read), Some(uncached)) =
+                (entry.cache_read_input_tokens, entry.uncached_input_tokens)
+            {
                 cache_read_total += cache_read;
                 uncached_total += uncached;
             }
@@ -421,10 +417,7 @@ fn compare_cost_periods(cost_data: &[DailyData], range: Range) -> Option<(f64, S
     Some((change_pct, direction.to_string()))
 }
 
-fn compare_token_periods(
-    usage_data: &[DailyUsageData],
-    range: Range,
-) -> Option<(f64, String)> {
+fn compare_token_periods(usage_data: &[DailyUsageData], range: Range) -> Option<(f64, String)> {
     if usage_data.is_empty() {
         return None;
     }
@@ -456,7 +449,8 @@ fn compare_token_periods(
         return None;
     }
 
-    let change_pct = ((current_total as f64 - previous_total as f64) / previous_total as f64) * 100.0;
+    let change_pct =
+        ((current_total as f64 - previous_total as f64) / previous_total as f64) * 100.0;
     let direction = if change_pct >= 0.0 { "↑" } else { "↓" };
 
     Some((change_pct, direction.to_string()))

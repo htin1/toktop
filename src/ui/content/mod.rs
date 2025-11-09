@@ -7,7 +7,7 @@ use crate::ui::colors::ColorPalette;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-pub fn render(f: &mut Frame, app: &App, area: Rect) {
+pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
 

@@ -52,6 +52,14 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             app.handle_api_key_input(key_code);
             EventAction::None
         }
+        KeyCode::Char('h') | KeyCode::Char('H') => {
+            app.scroll_chart(-1);
+            EventAction::None
+        }
+        KeyCode::Char('l') | KeyCode::Char('L') => {
+            app.scroll_chart(1);
+            EventAction::None
+        }
         KeyCode::Char('r') | KeyCode::Char('R') => EventAction::Refresh,
         KeyCode::Char('q') | KeyCode::Char('Q') => EventAction::Quit,
         _ => EventAction::None,

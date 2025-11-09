@@ -2,7 +2,7 @@ use crate::ui::colors::ColorPalette;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 use std::collections::HashMap;
@@ -11,6 +11,7 @@ pub const LEGEND_WIDTH: u16 = 50;
 pub const COST_THRESHOLD_FOR_LEGEND: f64 = 1.0;
 pub const VERTICAL_BAR_SPACING: u16 = 1;
 pub const MAX_BAR_WIDTH: u16 = 20;
+pub const HORIZONTAL_SCROLLBAR_HEIGHT: u16 = 1;
 
 #[derive(Clone, Copy)]
 pub struct VerticalBarLayout {
@@ -21,7 +22,11 @@ pub struct VerticalBarLayout {
     pub offset: u16,
 }
 
-pub fn vertical_bar_layout(total_bars: usize, area_width: u16) -> Option<VerticalBarLayout> {
+pub fn vertical_bar_layout(
+    total_bars: usize,
+    area_width: u16,
+    scroll_offset: usize,
+) -> Option<VerticalBarLayout> {
     if total_bars == 0 || area_width == 0 {
         return None;
     }
@@ -49,7 +54,8 @@ pub fn vertical_bar_layout(total_bars: usize, area_width: u16) -> Option<Vertica
         let required = visible * bar_width as usize + total_spacing;
         if required <= area_width as usize {
             let offset = ((area_width as usize - required) / 2) as u16;
-            let start_index = total_bars - visible;
+            let max_scroll = total_bars.saturating_sub(visible);
+            let start_index = scroll_offset.min(max_scroll);
             return Some(VerticalBarLayout {
                 start_index,
                 visible_bars: visible,
@@ -149,4 +155,38 @@ pub fn render_stacked_bar_segment(
             ),
         area,
     );
+}
+
+pub fn render_horizontal_scrollbar(
+    f: &mut Frame,
+    area: Rect,
+    total_items: usize,
+    visible_items: usize,
+    start_index: usize,
+    accent_color: Color,
+) {
+    if total_items == 0
+        || visible_items == 0
+        || area.width == 0
+        || area.height == 0
+        || total_items <= visible_items
+    {
+        return;
+    }
+
+    let viewport = visible_items.max(1);
+    let mut scrollbar_state = ScrollbarState::new(total_items)
+        .content_length(total_items - visible_items)
+        .viewport_content_length(viewport)
+        .position(start_index);
+
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .track_symbol(Some("─"))
+        .track_style(Style::default().fg(Color::DarkGray))
+        .thumb_symbol("━")
+        .thumb_style(Style::default().fg(accent_color));
+
+    f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
 }

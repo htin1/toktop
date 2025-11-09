@@ -36,6 +36,8 @@ pub struct ProviderInfo {
     pub cost_data: Vec<DailyData>,
     pub usage_data: Vec<DailyUsageData>,
     pub api_key_names: HashMap<String, String>,
+    pub cost_chart_scroll: usize,
+    pub usage_chart_scroll: usize,
 }
 
 impl ProviderInfo {
@@ -47,6 +49,8 @@ impl ProviderInfo {
             cost_data: Vec::new(),
             usage_data: Vec::new(),
             api_key_names: HashMap::new(),
+            cost_chart_scroll: usize::MAX,
+            usage_chart_scroll: usize::MAX,
         }
     }
 }
