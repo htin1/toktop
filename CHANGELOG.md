@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/htin1/toktop/compare/v0.1.2...v0.1.3) - 2025-11-10
+
+### Other
+
+- add a new hot key to toggle details - show values of each segment
+- for cost chart, add threshold of $1 per day to reduce noise
+- refactor cost and usage because they are repetitive. move more rendering logic to shared.rs
+- clean up each file; rename header.rs to summary.rs. no functionality change, just removed some dead code/repetitive code
+- update demo
+
 ## [0.1.2](https://github.com/htin1/toktop/compare/v0.1.1...v0.1.2) - 2025-11-09
 
 ### Other
