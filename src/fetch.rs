@@ -4,9 +4,12 @@ use crate::provider::{Provider, ProviderErrors};
 use chrono::{DateTime, Duration, Utc};
 use std::collections::{HashMap, HashSet};
 
+const DAYS_TO_FETCH: i64 = 30;
+const CENTS_TO_DOLLARS: f64 = 100.0;
+
 fn timestamp_to_date(timestamp: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(timestamp, 0)
-        .unwrap_or(Utc::now() - Duration::days(30))
+        .unwrap_or(Utc::now() - Duration::days(DAYS_TO_FETCH))
         .date_naive()
         .and_hms_opt(0, 0, 0)
         .unwrap()
@@ -26,7 +29,7 @@ pub async fn fetch_data(
 
 fn usage_start_time() -> DateTime<Utc> {
     let now = Utc::now();
-    (now.date_naive() - Duration::days(30))
+    (now.date_naive() - Duration::days(DAYS_TO_FETCH))
         .and_hms_opt(0, 0, 0)
         .unwrap()
         .and_utc()
@@ -48,8 +51,10 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
     let start_time = usage_start_time();
 
     if let Some(client) = client {
-        let (costs_result, usage_result) =
-            tokio::join!(client.fetch_costs(), client.fetch_usage(start_time),);
+        let (costs_result, usage_result) = tokio::join!(
+            client.fetch_costs(start_time),
+            client.fetch_usage(start_time)
+        );
 
         match costs_result {
             Ok(buckets) => {
@@ -79,14 +84,11 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
                     let date = timestamp_to_date(bucket.start_time);
 
                     for result in &bucket.results {
-                        let input_tokens = result.input_tokens;
-                        let output_tokens = result.output_tokens;
-
-                        if input_tokens > 0 || output_tokens > 0 {
+                        if result.input_tokens > 0 || result.output_tokens > 0 {
                             usage_data.push(DailyUsageData {
                                 date,
-                                input_tokens,
-                                output_tokens,
+                                input_tokens: result.input_tokens,
+                                output_tokens: result.output_tokens,
                                 api_key_id: result.api_key_id.clone(),
                                 model: result.model.clone(),
                                 cache_read_input_tokens: None,
@@ -94,7 +96,7 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
                                 num_requests: Some(result.num_model_requests),
                             });
 
-                            if let Some(ref api_key_id) = result.api_key_id {
+                            if let Some(api_key_id) = &result.api_key_id {
                                 api_key_ids.insert(api_key_id.clone());
                             }
                         }
@@ -109,9 +111,7 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
 
                 if !api_key_ids.is_empty() {
                     match client.fetch_api_key_names_for_ids(&api_key_ids).await {
-                        Ok(api_key_map) => {
-                            api_key_names.extend(api_key_map);
-                        }
+                        Ok(api_key_map) => api_key_names.extend(api_key_map),
                         Err(e) => {
                             append_error(
                                 &mut errors.usage,
@@ -156,7 +156,7 @@ async fn fetch_anthropic_data(client: Option<AnthropicClient>) -> crate::provide
                         let date = bucket_start.with_timezone(&Utc);
                         for result in bucket.results {
                             if let Ok(cost_cents) = result.amount.parse::<f64>() {
-                                let cost = cost_cents / 100.0;
+                                let cost = cost_cents / CENTS_TO_DOLLARS;
                                 if cost > 0.0 {
                                     cost_data.push(DailyData {
                                         date,
@@ -200,7 +200,7 @@ async fn fetch_anthropic_data(client: Option<AnthropicClient>) -> crate::provide
                                     num_requests: None,
                                 });
 
-                                if let Some(ref api_key_id) = result.api_key_id {
+                                if let Some(api_key_id) = &result.api_key_id {
                                     api_key_ids.insert(api_key_id.clone());
                                 }
                             }
@@ -227,10 +227,8 @@ async fn fetch_anthropic_data(client: Option<AnthropicClient>) -> crate::provide
                         .collect();
 
                     for handle in name_futures {
-                        if let Ok((api_key_id, result)) = handle.await {
-                            if let Ok(name) = result {
-                                api_key_names.insert(api_key_id, name);
-                            }
+                        if let Ok((api_key_id, Ok(name))) = handle.await {
+                            api_key_names.insert(api_key_id, name);
                         }
                     }
                 }

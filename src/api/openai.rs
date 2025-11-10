@@ -23,8 +23,10 @@ impl OpenAIClient {
         }
     }
 
-    pub async fn fetch_costs(&self) -> Result<Vec<OpenAIBucket<OpenAICostResult>>> {
-        let start_time = Utc::now() - chrono::Duration::days(30);
+    pub async fn fetch_costs(
+        &self,
+        start_time: DateTime<Utc>,
+    ) -> Result<Vec<OpenAIBucket<OpenAICostResult>>> {
         let start_ts = start_time.timestamp();
         let mut all_buckets = Vec::new();
         let mut page: Option<String> = None;

@@ -20,8 +20,8 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             let delta = if key_code == KeyCode::Up { -1 } else { 1 };
             let provider_before = app.current_provider();
             app.move_column_cursor(delta);
-            let provider_changed = provider_before != app.current_provider();
-            if provider_changed {
+
+            if provider_before != app.current_provider() {
                 let new_provider = app.current_provider();
                 if !app.has_client(new_provider) {
                     app.show_api_key_popup(new_provider);
@@ -31,10 +31,8 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
                         return EventAction::Refresh;
                     }
                 }
-                EventAction::None
-            } else {
-                EventAction::None
             }
+            EventAction::None
         }
         KeyCode::Enter if popup_active => {
             if app.submit_api_key() {

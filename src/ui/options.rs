@@ -34,112 +34,81 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_providers_column(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
-    let providers = [Provider::OpenAI, Provider::Anthropic];
-    let mut lines = Vec::new();
-    let is_active_column = app.options_column == OptionsColumn::Provider;
-
-    lines.push(Line::from(Span::styled(
+    render_simple_column(
+        f,
+        app,
+        area,
+        palette,
+        OptionsColumn::Provider,
         "Providers",
-        Style::default()
-            .fg(if is_active_column {
-                palette.primary
+        &[Provider::OpenAI, Provider::Anthropic],
+        |_app, item| item.label().to_string(),
+        |app, item| app.selected_provider == *item,
+        |app, item| {
+            if !app.has_client(*item) {
+                Style::default().fg(Color::DarkGray)
             } else {
-                Color::Gray
-            })
-            .add_modifier(Modifier::BOLD),
-    )));
-    lines.push(Line::from(""));
-
-    for provider in providers.iter() {
-        let is_selected = app.selected_provider == *provider;
-        let has_client = app.has_client(*provider);
-
-        let prefix = if is_active_column && is_selected {
-            "> "
-        } else {
-            "  "
-        };
-        let mut label = provider.label().to_string();
-        if !has_client {
-            label.push_str(" (key needed)");
-        }
-
-        let style = if is_selected && is_active_column {
-            Style::default()
-                .fg(palette.selected_fg)
-                .bg(palette.selected_bg)
-                .add_modifier(Modifier::BOLD)
-        } else if is_selected {
-            Style::default()
-                .fg(palette.primary)
-                .add_modifier(Modifier::BOLD)
-        } else if !has_client {
-            Style::default().fg(Color::DarkGray)
-        } else {
-            Style::default().fg(Color::White)
-        };
-
-        let padded = format!("{prefix}{label}");
-        lines.push(Line::from(Span::styled(padded, style)));
-    }
-
-    f.render_widget(Paragraph::new(lines).alignment(Alignment::Left), area);
-}
-
-fn render_range_column(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
-    let ranges = [Range::SevenDays, Range::ThirtyDays];
-    let mut lines = Vec::new();
-    let is_active_column = app.options_column == OptionsColumn::Range;
-
-    lines.push(Line::from(Span::styled(
-        "Range",
-        Style::default()
-            .fg(if is_active_column {
-                palette.primary
-            } else {
-                Color::Gray
-            })
-            .add_modifier(Modifier::BOLD),
-    )));
-    lines.push(Line::from(""));
-
-    for range in ranges.iter() {
-        let is_selected = app.range == *range;
-        let prefix = if is_active_column && is_selected {
-            "> "
-        } else {
-            "  "
-        };
-
-        let style = if is_selected && is_active_column {
-            Style::default()
-                .fg(palette.selected_fg)
-                .bg(palette.selected_bg)
-                .add_modifier(Modifier::BOLD)
-        } else if is_selected {
-            Style::default()
-                .fg(palette.primary)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::Gray)
-        };
-
-        let padded = format!("{prefix}{}", range.label());
-        lines.push(Line::from(Span::styled(padded, style)));
-    }
-
-    f.render_widget(Paragraph::new(lines).alignment(Alignment::Left), area);
+                Style::default().fg(Color::White)
+            }
+        },
+    );
 }
 
 fn render_metrics_column(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
-    let metrics = [View::Usage, View::Cost];
+    render_simple_column(
+        f,
+        app,
+        area,
+        palette,
+        OptionsColumn::Metric,
+        "Metrics",
+        &[View::Usage, View::Cost],
+        |_app, item| {
+            match item {
+                View::Cost => "Cost",
+                View::Usage => "Usage",
+            }
+            .to_string()
+        },
+        |app, item| app.current_view == *item,
+        |_app, _item| Style::default().fg(Color::Gray),
+    );
+}
+
+fn render_range_column(f: &mut Frame, app: &App, area: Rect, palette: &ColorPalette) {
+    render_simple_column(
+        f,
+        app,
+        area,
+        palette,
+        OptionsColumn::Range,
+        "Range",
+        &[Range::SevenDays, Range::ThirtyDays],
+        |_app, item| item.label().to_string(),
+        |app, item| app.range == *item,
+        |_app, _item| Style::default().fg(Color::Gray),
+    );
+}
+
+fn render_simple_column<T: Copy>(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    palette: &ColorPalette,
+    column: OptionsColumn,
+    title: &str,
+    items: &[T],
+    get_label: impl Fn(&App, &T) -> String,
+    is_selected: impl Fn(&App, &T) -> bool,
+    get_default_style: impl Fn(&App, &T) -> Style,
+) {
     let mut lines = Vec::new();
-    let is_active_column = app.options_column == OptionsColumn::Metric;
+    let is_active = app.options_column == column;
 
     lines.push(Line::from(Span::styled(
-        "Metrics",
+        title,
         Style::default()
-            .fg(if is_active_column {
+            .fg(if is_active {
                 palette.primary
             } else {
                 Color::Gray
@@ -148,37 +117,32 @@ fn render_metrics_column(f: &mut Frame, app: &App, area: Rect, palette: &ColorPa
     )));
     lines.push(Line::from(""));
 
-    for metric in metrics.iter() {
-        let is_selected = app.current_view == *metric;
-
-        let prefix = if is_active_column && is_selected {
-            "> "
-        } else {
-            "  "
-        };
-        let label = match metric {
-            View::Cost => "Cost",
-            View::Usage => "Usage",
-        };
-
-        let style = if is_selected && is_active_column {
-            Style::default()
-                .fg(palette.selected_fg)
-                .bg(palette.selected_bg)
-                .add_modifier(Modifier::BOLD)
-        } else if is_selected {
-            Style::default()
-                .fg(palette.primary)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::Gray)
-        };
-
-        let padded = format!("{prefix}{label}");
-        lines.push(Line::from(Span::styled(padded, style)));
+    for item in items {
+        let selected = is_selected(app, item);
+        let prefix = if is_active && selected { "> " } else { "  " };
+        let style = item_style(palette, selected, is_active, get_default_style(app, item));
+        lines.push(Line::from(Span::styled(
+            format!("{prefix}{}", get_label(app, item)),
+            style,
+        )));
     }
 
     f.render_widget(Paragraph::new(lines).alignment(Alignment::Left), area);
+}
+
+fn item_style(palette: &ColorPalette, selected: bool, active: bool, default: Style) -> Style {
+    if selected && active {
+        Style::default()
+            .fg(palette.selected_fg)
+            .bg(palette.selected_bg)
+            .add_modifier(Modifier::BOLD)
+    } else if selected {
+        Style::default()
+            .fg(palette.primary)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        default
+    }
 }
 
 fn format_filter_display_name(app: &App, filter: &str) -> String {
@@ -187,19 +151,10 @@ fn format_filter_display_name(app: &App, filter: &str) -> String {
         GroupBy::ApiKeys => {
             let api_key_names = &app.provider_info(app.current_provider()).api_key_names;
             api_key_names.get(filter).cloned().unwrap_or_else(|| {
-                if filter.chars().count() <= 16 {
+                if filter.len() <= 16 {
                     filter.to_string()
                 } else {
-                    let prefix: String = filter.chars().take(8).collect();
-                    let suffix: String = filter
-                        .chars()
-                        .rev()
-                        .take(4)
-                        .collect::<Vec<char>>()
-                        .into_iter()
-                        .rev()
-                        .collect();
-                    format!("{}...{}", prefix, suffix)
+                    format!("{}...{}", &filter[..8], &filter[filter.len() - 4..])
                 }
             })
         }
@@ -226,12 +181,10 @@ fn render_group_by_options(
             } else {
                 "  "
             }
+        } else if is_active_column && is_selected && !is_disabled {
+            "> "
         } else {
-            if is_active_column && is_selected && !is_disabled {
-                "> "
-            } else {
-                "  "
-            }
+            "  "
         };
 
         let label = match group_by {
@@ -245,27 +198,21 @@ fn render_group_by_options(
             } else {
                 ""
             }
+        } else if is_selected && is_active_column {
+            " ▶"
         } else {
-            if is_selected && is_active_column {
-                " ▶"
-            } else {
-                ""
-            }
+            ""
         };
 
         let style = if is_disabled {
             Style::default().fg(Color::DarkGray)
-        } else if is_selected && is_active_column && !is_expanded {
-            Style::default()
-                .fg(palette.selected_fg)
-                .bg(palette.selected_bg)
-                .add_modifier(Modifier::BOLD)
-        } else if is_selected {
-            Style::default()
-                .fg(palette.primary)
-                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Gray)
+            item_style(
+                palette,
+                is_selected,
+                is_active_column && !is_expanded,
+                Style::default().fg(Color::Gray),
+            )
         };
 
         lines.push(Line::from(Span::styled(
@@ -296,49 +243,31 @@ fn render_filter_list(
     } else {
         "    "
     };
-    let all_style = if is_all_selected && is_active_column {
-        Style::default()
-            .fg(palette.selected_fg)
-            .bg(palette.selected_bg)
-            .add_modifier(Modifier::BOLD)
-    } else if is_all_selected {
-        Style::default()
-            .fg(palette.primary)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Gray)
-    };
     lines.push(Line::from(Span::styled(
         format!("{all_prefix}All"),
-        all_style,
+        item_style(
+            palette,
+            is_all_selected,
+            is_active_column,
+            Style::default().fg(Color::Gray),
+        ),
     )));
 
     for (idx, filter) in filters.iter().enumerate() {
-        let filter_idx = idx + 1;
-        let is_selected = app.filter_cursor_index == filter_idx;
+        let is_selected = app.filter_cursor_index == idx + 1;
         let prefix = if is_active_column && is_selected {
             "  > "
         } else {
             "    "
         };
-
-        let display_name = format_filter_display_name(app, filter);
-        let style = if is_selected && is_active_column {
-            Style::default()
-                .fg(palette.selected_fg)
-                .bg(palette.selected_bg)
-                .add_modifier(Modifier::BOLD)
-        } else if is_selected {
-            Style::default()
-                .fg(palette.primary)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::Gray)
-        };
-
         lines.push(Line::from(Span::styled(
-            format!("{prefix}{display_name}"),
-            style,
+            format!("{prefix}{}", format_filter_display_name(app, filter)),
+            item_style(
+                palette,
+                is_selected,
+                is_active_column,
+                Style::default().fg(Color::Gray),
+            ),
         )));
     }
 }

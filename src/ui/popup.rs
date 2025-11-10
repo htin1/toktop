@@ -64,7 +64,6 @@ fn render_api_key_popup(
     let block = create_popup_block(&title, palette.primary);
     let inner = block.inner(popup_area);
 
-    // Provider-specific hints
     let (key_url, env_var_name) = match provider {
         crate::provider::Provider::OpenAI => (
             "https://platform.openai.com/settings/organization/admin-keys",

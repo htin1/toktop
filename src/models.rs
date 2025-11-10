@@ -3,14 +3,15 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct AnthropicApiKeyResponse {
-    #[allow(dead_code)]
+    #[serde(skip)]
+    #[expect(unused)]
     pub id: String,
     pub name: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub status: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub created_at: Option<String>,
 }
 
@@ -79,28 +80,29 @@ pub struct AnthropicCostBucket {
 
 #[derive(Deserialize)]
 pub struct AnthropicCostResult {
-    #[allow(dead_code)]
+    #[serde(skip)]
+    #[expect(unused)]
     pub currency: String,
     pub amount: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub workspace_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub description: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub cost_type: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub context_window: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub service_tier: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub token_type: Option<String>,
 }
 
@@ -116,7 +118,8 @@ pub struct AnthropicUsageResponse {
 #[derive(Deserialize)]
 pub struct AnthropicUsageTimeBucket {
     pub starting_at: String,
-    #[allow(dead_code)]
+    #[serde(skip)]
+    #[expect(unused)]
     pub ending_at: String,
     pub results: Vec<AnthropicUsageItem>,
 }
@@ -127,20 +130,21 @@ pub struct AnthropicUsageItem {
     pub cache_creation: CacheCreation,
     pub cache_read_input_tokens: u64,
     pub output_tokens: u64,
-    #[allow(dead_code)]
+    #[serde(default)]
+    #[expect(unused)]
     pub server_tool_use: ServerToolUse,
     #[serde(default)]
     pub api_key_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub workspace_id: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub service_tier: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub context_window: Option<String>,
 }
 
@@ -150,17 +154,17 @@ pub struct CacheCreation {
     pub ephemeral_5m_input_tokens: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct ServerToolUse {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub web_search_requests: u64,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAIUsageResponse {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     pub data: Vec<OpenAIUsageBucket>,
     #[serde(default)]
@@ -172,10 +176,11 @@ pub struct OpenAIUsageResponse {
 #[derive(Deserialize)]
 pub struct OpenAIUsageBucket {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     pub start_time: i64,
-    #[allow(dead_code)]
+    #[serde(skip)]
+    #[expect(unused)]
     pub end_time: i64,
     pub results: Vec<OpenAIUsageResult>,
 }
@@ -183,7 +188,7 @@ pub struct OpenAIUsageBucket {
 #[derive(Deserialize)]
 pub struct OpenAIUsageResult {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
@@ -193,27 +198,26 @@ pub struct OpenAIUsageResult {
     #[serde(default)]
     pub output_tokens: u64,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub input_cached_tokens: u64,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub input_audio_tokens: u64,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub output_audio_tokens: u64,
     #[serde(default)]
-    #[allow(dead_code)]
     pub num_model_requests: u64,
     // For embeddings (uses input_tokens above)
     // For images
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub images: u64,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub project_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub user_id: Option<String>,
     #[serde(default)]
     pub api_key_id: Option<String>,
@@ -222,14 +226,13 @@ pub struct OpenAIUsageResult {
 #[derive(Deserialize)]
 pub struct OpenAIProjectsResponse {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     pub data: Vec<OpenAIProject>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub first_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
     pub last_id: Option<String>,
     #[serde(default)]
     pub has_more: bool,
@@ -239,18 +242,19 @@ pub struct OpenAIProjectsResponse {
 pub struct OpenAIProject {
     pub id: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
-    #[allow(dead_code)]
+    #[serde(skip)]
+    #[expect(unused)]
     pub name: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub created_at: Option<i64>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub archived_at: Option<i64>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub status: Option<String>,
 }
 
@@ -258,67 +262,66 @@ pub struct OpenAIProject {
 pub struct OpenAIProjectApiKey {
     pub id: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub redacted_value: Option<String>,
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub created_at: Option<i64>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub last_used_at: Option<i64>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub owner: Option<OpenAIProjectApiKeyOwner>,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAIProjectApiKeyOwner {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub r#type: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub user: Option<OpenAIProjectApiKeyOwnerUser>,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAIProjectApiKeyOwnerUser {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub name: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub email: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub role: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub added_at: Option<i64>,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAIProjectApiKeysResponse {
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub object: Option<String>,
     pub data: Vec<OpenAIProjectApiKey>,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub first_id: Option<String>,
     #[serde(default)]
-    #[allow(dead_code)]
     pub last_id: Option<String>,
     #[serde(default)]
     pub has_more: bool,

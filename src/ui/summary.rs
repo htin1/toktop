@@ -3,7 +3,7 @@ use crate::models::{DailyData, DailyUsageData};
 use crate::ui::banner;
 use crate::ui::colors::ColorPalette;
 use crate::ui::utils::format_tokens;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -45,8 +45,14 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let total_requests = calculate_total_requests(&info.usage_data, app.range);
 
     // Calculate period comparisons
-    let cost_period_comparison = compare_cost_periods(&info.cost_data, app.range);
-    let token_period_comparison = compare_token_periods(&info.usage_data, app.range);
+    let cost_period_comparison =
+        compare_periods(&info.cost_data, app.range, |d| d.date, |d| d.cost);
+    let token_period_comparison = compare_periods(
+        &info.usage_data,
+        app.range,
+        |d| d.date,
+        |d| (d.input_tokens + d.output_tokens) as f64,
+    );
 
     let date_range = {
         cost_bounds
@@ -107,24 +113,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ]));
     }
 
-    // Cost period comparison (only for 7d range)
     if app.range == crate::app::Range::SevenDays {
-        if let Some((change_pct, direction)) = cost_period_comparison {
-            let change_color = if change_pct >= 0.0 {
-                Color::Red
-            } else {
-                Color::Green
-            };
-            left_text.push(Line::from(vec![
-                Span::styled("Change from last week: ", Style::default().fg(Color::Gray)),
-                Span::styled(
-                    format!("{} {:.1}%", direction, change_pct.abs()),
-                    Style::default()
-                        .fg(change_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]));
-        }
+        add_period_comparison(&mut left_text, cost_period_comparison);
     }
 
     if total_tokens > 0 {
@@ -168,24 +158,8 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             ),
         ]));
 
-        // Token period comparison (only for 7d range)
         if app.range == crate::app::Range::SevenDays {
-            if let Some((change_pct, direction)) = token_period_comparison {
-                let change_color = if change_pct >= 0.0 {
-                    Color::Red
-                } else {
-                    Color::Green
-                };
-                left_text.push(Line::from(vec![
-                    Span::styled("Change from last week: ", Style::default().fg(Color::Gray)),
-                    Span::styled(
-                        format!("{} {:.1}%", direction, change_pct.abs()),
-                        Style::default()
-                            .fg(change_color)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                ]));
-            }
+            add_period_comparison(&mut left_text, token_period_comparison);
         }
     }
 
@@ -243,7 +217,26 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Paragraph::new(right_text), columns[1]);
 }
 
-fn range_cutoff(range: Range, latest: chrono::DateTime<Utc>) -> chrono::DateTime<Utc> {
+fn add_period_comparison(text: &mut Vec<Line>, comparison: Option<(f64, String)>) {
+    if let Some((change_pct, direction)) = comparison {
+        let change_color = if change_pct >= 0.0 {
+            Color::Red
+        } else {
+            Color::Green
+        };
+        text.push(Line::from(vec![
+            Span::styled("Change from last week: ", Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("{} {:.1}%", direction, change_pct.abs()),
+                Style::default()
+                    .fg(change_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
+    }
+}
+
+fn range_cutoff(range: Range, latest: DateTime<Utc>) -> DateTime<Utc> {
     let span = range.days().saturating_sub(1);
     latest - Duration::days(span)
 }
@@ -251,7 +244,7 @@ fn range_cutoff(range: Range, latest: chrono::DateTime<Utc>) -> chrono::DateTime
 fn summarize_cost(
     data: &[DailyData],
     range: Range,
-) -> (f64, Option<(chrono::DateTime<Utc>, chrono::DateTime<Utc>)>) {
+) -> (f64, Option<(DateTime<Utc>, DateTime<Utc>)>) {
     if data.is_empty() {
         return (0.0, None);
     }
@@ -261,31 +254,23 @@ fn summarize_cost(
         None => return (0.0, None),
     };
     let cutoff = range_cutoff(range, latest);
+    let filtered: Vec<_> = data.iter().filter(|d| d.date >= cutoff).collect();
 
-    let mut total = 0.0;
-    let mut min_date: Option<chrono::DateTime<Utc>> = None;
-    let mut max_date: Option<chrono::DateTime<Utc>> = None;
-
-    for entry in data {
-        if entry.date >= cutoff {
-            total += entry.cost;
-            min_date = Some(min_date.map_or(entry.date, |min| min.min(entry.date)));
-            max_date = Some(max_date.map_or(entry.date, |max| max.max(entry.date)));
-        }
+    if filtered.is_empty() {
+        return (0.0, None);
     }
 
-    let bounds = min_date.zip(max_date);
+    let total: f64 = filtered.iter().map(|d| d.cost).sum();
+    let min_date = filtered.iter().map(|d| d.date).min().unwrap();
+    let max_date = filtered.iter().map(|d| d.date).max().unwrap();
 
-    (total, bounds)
+    (total, Some((min_date, max_date)))
 }
 
 fn summarize_usage(
     data: &[DailyUsageData],
     range: Range,
-) -> (
-    (u64, u64),
-    Option<(chrono::DateTime<Utc>, chrono::DateTime<Utc>)>,
-) {
+) -> ((u64, u64), Option<(DateTime<Utc>, DateTime<Utc>)>) {
     if data.is_empty() {
         return ((0, 0), None);
     }
@@ -295,24 +280,18 @@ fn summarize_usage(
         None => return ((0, 0), None),
     };
     let cutoff = range_cutoff(range, latest);
+    let filtered: Vec<_> = data.iter().filter(|d| d.date >= cutoff).collect();
 
-    let mut input_total = 0;
-    let mut output_total = 0;
-    let mut min_date: Option<chrono::DateTime<Utc>> = None;
-    let mut max_date: Option<chrono::DateTime<Utc>> = None;
-
-    for entry in data {
-        if entry.date >= cutoff {
-            input_total += entry.input_tokens;
-            output_total += entry.output_tokens;
-            min_date = Some(min_date.map_or(entry.date, |min| min.min(entry.date)));
-            max_date = Some(max_date.map_or(entry.date, |max| max.max(entry.date)));
-        }
+    if filtered.is_empty() {
+        return ((0, 0), None);
     }
 
-    let bounds = min_date.zip(max_date);
+    let input_total: u64 = filtered.iter().map(|d| d.input_tokens).sum();
+    let output_total: u64 = filtered.iter().map(|d| d.output_tokens).sum();
+    let min_date = filtered.iter().map(|d| d.date).min().unwrap();
+    let max_date = filtered.iter().map(|d| d.date).max().unwrap();
 
-    ((input_total, output_total), bounds)
+    ((input_total, output_total), Some((min_date, max_date)))
 }
 
 fn calculate_cost_per_million_tokens(total_cost: f64, total_tokens: u64) -> Option<f64> {
@@ -324,134 +303,76 @@ fn calculate_cost_per_million_tokens(total_cost: f64, total_tokens: u64) -> Opti
 }
 
 fn calculate_cache_hit_rate(usage_data: &[DailyUsageData], range: Range) -> Option<f64> {
-    let latest = match usage_data.iter().map(|d| d.date).max() {
-        Some(date) => date,
-        None => return None,
-    };
+    let latest = usage_data.iter().map(|d| d.date).max()?;
     let cutoff = range_cutoff(range, latest);
 
-    let mut cache_read_total = 0u64;
-    let mut uncached_total = 0u64;
-
-    for entry in usage_data {
-        if entry.date >= cutoff {
-            if let (Some(cache_read), Some(uncached)) =
-                (entry.cache_read_input_tokens, entry.uncached_input_tokens)
-            {
-                cache_read_total += cache_read;
-                uncached_total += uncached;
-            }
-        }
-    }
+    let (cache_read_total, uncached_total): (u64, u64) = usage_data
+        .iter()
+        .filter(|d| d.date >= cutoff)
+        .filter_map(|d| Some((d.cache_read_input_tokens?, d.uncached_input_tokens?)))
+        .fold((0, 0), |(a, b), (c, u)| (a + c, b + u));
 
     let total_cacheable = cache_read_total + uncached_total;
     if total_cacheable == 0 {
         return None;
     }
 
-    let hit_rate = (cache_read_total as f64 / total_cacheable as f64) * 100.0;
-    Some(hit_rate)
+    Some((cache_read_total as f64 / total_cacheable as f64) * 100.0)
 }
 
 fn calculate_total_requests(usage_data: &[DailyUsageData], range: Range) -> Option<u64> {
-    let latest = match usage_data.iter().map(|d| d.date).max() {
-        Some(date) => date,
-        None => return None,
-    };
+    let latest = usage_data.iter().map(|d| d.date).max()?;
     let cutoff = range_cutoff(range, latest);
 
-    let mut total = 0u64;
-    let mut has_requests = false;
+    let total: u64 = usage_data
+        .iter()
+        .filter(|d| d.date >= cutoff)
+        .filter_map(|d| d.num_requests)
+        .sum();
 
-    for entry in usage_data {
-        if entry.date >= cutoff {
-            if let Some(requests) = entry.num_requests {
-                total += requests;
-                has_requests = true;
-            }
-        }
-    }
-
-    if has_requests {
+    if total > 0 {
         Some(total)
     } else {
         None
     }
 }
 
-fn compare_cost_periods(cost_data: &[DailyData], range: Range) -> Option<(f64, String)> {
-    if cost_data.is_empty() {
+fn compare_periods<T>(
+    data: &[T],
+    range: Range,
+    extract_date: impl Fn(&T) -> DateTime<Utc>,
+    extract_value: impl Fn(&T) -> f64,
+) -> Option<(f64, String)> {
+    if data.is_empty() {
         return None;
     }
 
-    let latest = match cost_data.iter().map(|d| d.date).max() {
-        Some(date) => date,
-        None => return None,
-    };
-
+    let latest = data.iter().map(&extract_date).max()?;
     let cutoff = range_cutoff(range, latest);
     let period_days = range.days() as i64;
-
-    // Calculate current period total
-    let current_cost: f64 = cost_data
-        .iter()
-        .filter(|d| d.date >= cutoff)
-        .map(|d| d.cost)
-        .sum();
-
-    // Calculate previous period total
     let previous_cutoff = cutoff - Duration::days(period_days);
-    let previous_cost: f64 = cost_data
+
+    let current: f64 = data
         .iter()
-        .filter(|d| d.date >= previous_cutoff && d.date < cutoff)
-        .map(|d| d.cost)
+        .filter(|d| extract_date(d) >= cutoff)
+        .map(&extract_value)
+        .sum();
+    let previous: f64 = data
+        .iter()
+        .filter(|d| {
+            let date = extract_date(d);
+            date >= previous_cutoff && date < cutoff
+        })
+        .map(&extract_value)
         .sum();
 
-    if previous_cost == 0.0 {
+    if previous == 0.0 {
         return None;
     }
 
-    let change_pct = ((current_cost - previous_cost) / previous_cost) * 100.0;
-    let direction = if change_pct >= 0.0 { "↑" } else { "↓" };
-
-    Some((change_pct, direction.to_string()))
-}
-
-fn compare_token_periods(usage_data: &[DailyUsageData], range: Range) -> Option<(f64, String)> {
-    if usage_data.is_empty() {
-        return None;
-    }
-
-    let latest = match usage_data.iter().map(|d| d.date).max() {
-        Some(date) => date,
-        None => return None,
-    };
-
-    let cutoff = range_cutoff(range, latest);
-    let period_days = range.days() as i64;
-
-    // Calculate current period total
-    let current_total: u64 = usage_data
-        .iter()
-        .filter(|d| d.date >= cutoff)
-        .map(|d| d.input_tokens + d.output_tokens)
-        .sum();
-
-    // Calculate previous period total
-    let previous_cutoff = cutoff - Duration::days(period_days);
-    let previous_total: u64 = usage_data
-        .iter()
-        .filter(|d| d.date >= previous_cutoff && d.date < cutoff)
-        .map(|d| d.input_tokens + d.output_tokens)
-        .sum();
-
-    if previous_total == 0 {
-        return None;
-    }
-
-    let change_pct =
-        ((current_total as f64 - previous_total as f64) / previous_total as f64) * 100.0;
-    let direction = if change_pct >= 0.0 { "↑" } else { "↓" };
-
-    Some((change_pct, direction.to_string()))
+    let change_pct = ((current - previous) / previous) * 100.0;
+    Some((
+        change_pct,
+        if change_pct >= 0.0 { "↑" } else { "↓" }.to_string(),
+    ))
 }

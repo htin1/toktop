@@ -1,5 +1,5 @@
 use crate::app::App;
-use crate::ui::{content, footer, header, options, popup};
+use crate::ui::{content, footer, summary, options, popup};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     Frame,
@@ -24,7 +24,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
             .split(vertical_chunks[0]);
         let app_ref = &*app;
         options::render(f, app_ref, top_chunks[0]);
-        header::render(f, app_ref, top_chunks[1]);
+        summary::render(f, app_ref, top_chunks[1]);
     }
 
     // Middle section: full width chart

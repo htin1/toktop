@@ -2,7 +2,8 @@ use crate::api::{anthropic::AnthropicClient, openai::OpenAIClient};
 use crate::models::{DailyData, DailyUsageData};
 use crate::provider::{Provider, ProviderClient, ProviderInfo};
 use chrono::Duration;
-use std::collections::HashMap;
+use crossterm::event::KeyCode;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -146,35 +147,29 @@ impl App {
             OptionsColumn::GroupBy => {
                 if self.group_by_expanded {
                     let filters = self.get_available_filters();
-                    let total_items = filters.len() + 1;
-                    if total_items > 0 {
-                        let len = total_items as isize;
-                        let current_idx = self.filter_cursor_index as isize;
-                        let next = (current_idx + delta).rem_euclid(len);
-                        self.filter_cursor_index = next as usize;
+                    let len = (filters.len() + 1) as isize;
+                    let current_idx = self.filter_cursor_index as isize;
+                    let next = (current_idx + delta).rem_euclid(len);
+                    self.filter_cursor_index = next as usize;
 
-                        if self.filter_cursor_index == 0 {
-                            self.selected_filter = None;
-                        } else {
-                            self.selected_filter =
-                                filters.get(self.filter_cursor_index - 1).cloned();
-                        }
+                    if self.filter_cursor_index == 0 {
+                        self.selected_filter = None;
+                    } else {
+                        self.selected_filter = filters.get(self.filter_cursor_index - 1).cloned();
                     }
-                } else {
-                    if self.current_view == View::Usage {
-                        let group_by_options = [GroupBy::Model, GroupBy::ApiKeys];
-                        let len = group_by_options.len() as isize;
-                        if let Some(idx) = group_by_options
-                            .iter()
-                            .position(|&group| group == self.group_by)
-                        {
-                            let next = (idx as isize + delta).rem_euclid(len);
-                            let new_group_by = group_by_options[next as usize];
-                            if new_group_by != self.group_by {
-                                self.group_by = new_group_by;
-                                self.selected_filter = None;
-                                self.filter_cursor_index = 0;
-                            }
+                } else if self.current_view == View::Usage {
+                    let group_by_options = [GroupBy::Model, GroupBy::ApiKeys];
+                    let len = group_by_options.len() as isize;
+                    if let Some(idx) = group_by_options
+                        .iter()
+                        .position(|&group| group == self.group_by)
+                    {
+                        let next = (idx as isize + delta).rem_euclid(len);
+                        let new_group_by = group_by_options[next as usize];
+                        if new_group_by != self.group_by {
+                            self.group_by = new_group_by;
+                            self.selected_filter = None;
+                            self.filter_cursor_index = 0;
                         }
                     }
                 }
@@ -232,13 +227,12 @@ impl App {
     }
 
     pub fn ensure_selection_has_client(&mut self) {
-        if self.has_client(self.selected_provider) {
-            return;
-        }
-        if self.has_client(Provider::OpenAI) {
-            self.selected_provider = Provider::OpenAI;
-        } else if self.has_client(Provider::Anthropic) {
-            self.selected_provider = Provider::Anthropic;
+        if !self.has_client(self.selected_provider) {
+            if self.has_client(Provider::OpenAI) {
+                self.selected_provider = Provider::OpenAI;
+            } else if self.has_client(Provider::Anthropic) {
+                self.selected_provider = Provider::Anthropic;
+            }
         }
     }
 
@@ -296,12 +290,8 @@ impl App {
             let key = self.api_key_input.trim().to_string();
             if !key.is_empty() {
                 match provider {
-                    Provider::OpenAI => {
-                        self.set_openai_client(key);
-                    }
-                    Provider::Anthropic => {
-                        self.set_anthropic_client(key);
-                    }
+                    Provider::OpenAI => self.set_openai_client(key),
+                    Provider::Anthropic => self.set_anthropic_client(key),
                 }
                 self.api_key_popup_active = None;
                 self.api_key_input.clear();
@@ -311,12 +301,10 @@ impl App {
         false
     }
 
-    pub fn handle_api_key_input(&mut self, key_code: crossterm::event::KeyCode) {
+    pub fn handle_api_key_input(&mut self, key_code: KeyCode) {
         match key_code {
-            crossterm::event::KeyCode::Char(c) => {
-                self.api_key_input.push(c);
-            }
-            crossterm::event::KeyCode::Backspace => {
+            KeyCode::Char(c) => self.api_key_input.push(c),
+            KeyCode::Backspace => {
                 self.api_key_input.pop();
             }
             _ => {}
@@ -393,11 +381,10 @@ impl App {
         let filtered_usage_data = self.filter_usage_data_by_range(&info.usage_data);
         let filtered_cost_data = self.filter_cost_data_by_range(&info.cost_data);
 
-        let filters: Vec<String> = match self.group_by {
+        let mut filters: Vec<String> = match self.group_by {
             GroupBy::Model => match self.current_view {
                 View::Cost => {
-                    let mut model_totals: std::collections::HashMap<String, f64> =
-                        std::collections::HashMap::new();
+                    let mut model_totals = HashMap::new();
                     for cost in &filtered_cost_data {
                         if let Some(ref line_item) = cost.line_item {
                             let line_item = line_item.trim();
@@ -414,7 +401,7 @@ impl App {
                         .collect()
                 }
                 View::Usage => {
-                    let mut models_with_usage = std::collections::HashSet::new();
+                    let mut models_with_usage = HashSet::new();
                     for usage in &filtered_usage_data {
                         if let Some(ref model) = usage.model {
                             let model = model.trim();
@@ -429,7 +416,7 @@ impl App {
                 }
             },
             GroupBy::ApiKeys => {
-                let mut api_keys_with_usage = std::collections::HashSet::new();
+                let mut api_keys_with_usage = HashSet::new();
                 for usage in &filtered_usage_data {
                     if let Some(ref api_key_id) = usage.api_key_id {
                         let api_key_id = api_key_id.trim();
@@ -444,9 +431,8 @@ impl App {
             }
         };
 
-        let mut sorted_filters = filters;
-        sorted_filters.sort();
-        sorted_filters
+        filters.sort();
+        filters
     }
 
     fn filter_usage_data_by_range(&self, data: &[DailyUsageData]) -> Vec<DailyUsageData> {
