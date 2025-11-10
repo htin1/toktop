@@ -1,6 +1,6 @@
 use crate::ui::colors::ColorPalette;
 use ratatui::{
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
@@ -119,6 +119,12 @@ pub fn create_color_mapping(items: &[String], palette: &ColorPalette) -> HashMap
         .collect()
 }
 
+pub fn extract_trimmed_string(opt: &Option<String>) -> Option<&str> {
+    opt.as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+}
+
 pub fn abbreviate_api_key(id: &str) -> String {
     if id.chars().count() <= 16 {
         return id.to_string();
@@ -135,6 +141,16 @@ pub fn abbreviate_api_key(id: &str) -> String {
         .collect();
 
     format!("{}...{}", prefix, suffix)
+}
+
+pub fn filter_item_colors(
+    all_colors: &HashMap<String, Color>,
+    filtered_items: &[String],
+) -> HashMap<String, Color> {
+    filtered_items
+        .iter()
+        .filter_map(|item| all_colors.get(item).map(|color| (item.clone(), *color)))
+        .collect()
 }
 
 pub fn render_stacked_bar_segment(
@@ -189,4 +205,170 @@ pub fn render_horizontal_scrollbar(
         .thumb_style(Style::default().fg(accent_color));
 
     f.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+}
+
+pub fn render_vertical_stacked_bars<F, G>(
+    f: &mut Frame,
+    chart_area: Rect,
+    dates: &[String],
+    items: &[String],
+    get_value: F,
+    get_total: G,
+    format_total: impl Fn(f64) -> String,
+    item_colors: &HashMap<String, Color>,
+    max_total: f64,
+    scroll_offset: usize,
+) -> Option<VerticalBarLayout>
+where
+    F: Fn(&str, &str) -> Option<f64>,
+    G: Fn(&str) -> f64,
+{
+    if chart_area.width == 0 || chart_area.height <= 1 || max_total <= 0.0 {
+        return None;
+    }
+
+    let label_height: u16 = 1;
+    let value_label_height: u16 = 1;
+    let scrollbar_height = HORIZONTAL_SCROLLBAR_HEIGHT;
+    let bar_area_height = chart_area
+        .height
+        .saturating_sub(label_height)
+        .saturating_sub(value_label_height)
+        .saturating_sub(scrollbar_height);
+    if bar_area_height == 0 {
+        return None;
+    }
+    let bars_y = chart_area.y + value_label_height;
+
+    let layout = match vertical_bar_layout(dates.len(), chart_area.width, scroll_offset) {
+        Some(layout) => layout,
+        None => return None,
+    };
+
+    let end_index = layout.start_index + layout.visible_bars;
+
+    for (visible_idx, date_idx) in (layout.start_index..end_index).enumerate() {
+        let date = &dates[date_idx];
+        let total = get_total(date);
+        let bar_x = chart_area.x
+            + layout.offset
+            + (visible_idx as u16) * (layout.bar_width + layout.spacing);
+
+        let mut used_height = 0;
+        let mut top_segment_area: Option<Rect> = None;
+        for item in items {
+            if let Some(value) = get_value(date, item) {
+                if value <= 0.0 {
+                    continue;
+                }
+
+                let mut segment_height =
+                    ((value / max_total) * bar_area_height as f64).round() as u16;
+                if segment_height == 0 {
+                    segment_height = 1;
+                }
+                let remaining = bar_area_height.saturating_sub(used_height);
+                if remaining == 0 {
+                    break;
+                }
+                if segment_height > remaining {
+                    segment_height = remaining;
+                }
+
+                let segment_y = bars_y + bar_area_height - used_height - segment_height;
+                let color = item_colors.get(item).copied().unwrap_or(Color::White);
+                let segment_area = Rect::new(bar_x, segment_y, layout.bar_width, segment_height);
+                render_stacked_bar_segment(f, segment_area, "", color, Color::Black);
+                top_segment_area = Some(segment_area);
+                used_height += segment_height;
+            }
+        }
+
+        if used_height == 0 && bar_area_height > 0 {
+            let marker_y = bars_y + bar_area_height - 1;
+            render_stacked_bar_segment(
+                f,
+                Rect::new(bar_x, marker_y, layout.bar_width, 1),
+                "",
+                Color::DarkGray,
+                Color::Black,
+            );
+        }
+
+        if total > 0.0 {
+            if let Some(segment_area) = top_segment_area {
+                let label_y = segment_area.y - 1;
+                f.render_widget(
+                    Paragraph::new(format_total(total))
+                        .alignment(Alignment::Center)
+                        .style(
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    Rect::new(bar_x, label_y, layout.bar_width, 1),
+                );
+            }
+        }
+
+        let label_area = Rect::new(
+            bar_x,
+            bars_y + bar_area_height,
+            layout.bar_width,
+            label_height,
+        );
+        let label_text = compact_date_label(date, layout.bar_width);
+        f.render_widget(
+            Paragraph::new(label_text).alignment(Alignment::Center),
+            label_area,
+        );
+    }
+
+    Some(layout)
+}
+
+pub fn handle_chart_scrollbar(
+    f: &mut Frame,
+    app: &mut crate::app::App,
+    chart_area: Rect,
+    total_dates: usize,
+    layout: VerticalBarLayout,
+    accent_color: Color,
+) {
+    let scrollbar_visible = total_dates > layout.visible_bars
+        && chart_area.height >= HORIZONTAL_SCROLLBAR_HEIGHT;
+    app.chart_scrollbar_visible = scrollbar_visible;
+
+    if scrollbar_visible {
+        let scrollbar_height = HORIZONTAL_SCROLLBAR_HEIGHT.min(chart_area.height);
+        let scrollbar_area = Rect::new(
+            chart_area.x,
+            chart_area.y + chart_area.height.saturating_sub(scrollbar_height),
+            chart_area.width,
+            scrollbar_height,
+        );
+        render_horizontal_scrollbar(
+            f,
+            scrollbar_area,
+            total_dates,
+            layout.visible_bars,
+            layout.start_index,
+            accent_color,
+        );
+    }
+}
+
+pub fn apply_filter<T: Clone>(
+    data: &[T],
+    selected_filter: Option<&String>,
+    extract_field: impl Fn(&T) -> Option<&str>,
+) -> Vec<T> {
+    if let Some(filter) = selected_filter {
+        data.iter()
+            .filter(|d| extract_field(d).map(|s| s == filter.as_str()).unwrap_or(false))
+            .cloned()
+            .collect()
+    } else {
+        data.to_vec()
+    }
 }

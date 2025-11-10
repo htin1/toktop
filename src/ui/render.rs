@@ -1,5 +1,5 @@
 use crate::app::App;
-use crate::ui::{content, footer, summary, options, popup};
+use crate::ui::{content, footer, options, popup, summary};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     Frame,

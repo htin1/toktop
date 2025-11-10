@@ -435,7 +435,7 @@ impl App {
         filters
     }
 
-    fn filter_usage_data_by_range(&self, data: &[DailyUsageData]) -> Vec<DailyUsageData> {
+    pub fn filter_usage_data_by_range(&self, data: &[DailyUsageData]) -> Vec<DailyUsageData> {
         let latest_date = match data.iter().map(|d| d.date).max() {
             Some(date) => date,
             None => return Vec::new(),
@@ -445,7 +445,7 @@ impl App {
         data.iter().filter(|d| d.date >= cutoff).cloned().collect()
     }
 
-    fn filter_cost_data_by_range(&self, data: &[DailyData]) -> Vec<DailyData> {
+    pub fn filter_cost_data_by_range(&self, data: &[DailyData]) -> Vec<DailyData> {
         let latest_date = match data.iter().map(|d| d.date).max() {
             Some(date) => date,
             None => return Vec::new(),
