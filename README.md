@@ -21,6 +21,10 @@
 [![](https://shields.io/badge/-Rust-3776AB?style=flat&logo=rust)](https://www.rust-lang.org/)
 [![Built With Ratatui](https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff)](https://ratatui.rs/)
 
+<img src="https://vhs.charm.sh/vhs-2oaQsyOnZGZSgoxN13DrQS.gif" alt="Made with VHS">
+<a href="https://vhs.charm.sh">
+   <img src="https://stuff.charm.sh/vhs/badge.svg">
+</a>
 
 </div>
 
