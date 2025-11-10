@@ -120,9 +120,7 @@ pub fn create_color_mapping(items: &[String], palette: &ColorPalette) -> HashMap
 }
 
 pub fn extract_trimmed_string(opt: &Option<String>) -> Option<&str> {
-    opt.as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
+    opt.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
 pub fn abbreviate_api_key(id: &str) -> String {
@@ -335,8 +333,8 @@ pub fn handle_chart_scrollbar(
     layout: VerticalBarLayout,
     accent_color: Color,
 ) {
-    let scrollbar_visible = total_dates > layout.visible_bars
-        && chart_area.height >= HORIZONTAL_SCROLLBAR_HEIGHT;
+    let scrollbar_visible =
+        total_dates > layout.visible_bars && chart_area.height >= HORIZONTAL_SCROLLBAR_HEIGHT;
     app.chart_scrollbar_visible = scrollbar_visible;
 
     if scrollbar_visible {
@@ -365,7 +363,11 @@ pub fn apply_filter<T: Clone>(
 ) -> Vec<T> {
     if let Some(filter) = selected_filter {
         data.iter()
-            .filter(|d| extract_field(d).map(|s| s == filter.as_str()).unwrap_or(false))
+            .filter(|d| {
+                extract_field(d)
+                    .map(|s| s == filter.as_str())
+                    .unwrap_or(false)
+            })
             .cloned()
             .collect()
     } else {

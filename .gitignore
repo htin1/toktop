@@ -17,3 +17,6 @@ Thumbs.db
 .env
 .env.local
 
+# VHS
+demo.gif
+demo.tape

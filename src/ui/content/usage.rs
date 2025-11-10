@@ -20,7 +20,6 @@ struct UsageChartData {
     items: Vec<String>,
 }
 
-
 fn process_usage_data(data: &[DailyUsageData], group_by: GroupBy) -> UsageChartData {
     let mut daily_tokens: HashMap<String, HashMap<String, (u64, u64)>> = HashMap::new();
     let mut item_totals: HashMap<String, (u64, u64)> = HashMap::new();

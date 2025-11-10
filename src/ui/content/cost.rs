@@ -19,6 +19,22 @@ struct CostChartData {
     items: Vec<String>,
 }
 
+fn filter_items_by_cost_threshold(
+    items: &[String],
+    item_totals: &HashMap<String, f64>,
+) -> Vec<String> {
+    let mut filtered_items: Vec<String> = items
+        .iter()
+        .filter(|item| item_totals.get(*item).copied().unwrap_or(0.0) >= shared::COST_THRESHOLD)
+        .cloned()
+        .collect();
+
+    if filtered_items.is_empty() {
+        filtered_items = items.to_vec();
+    }
+
+    filtered_items
+}
 
 fn process_cost_data(data: &[DailyData]) -> CostChartData {
     let mut daily_costs: HashMap<String, HashMap<String, f64>> = HashMap::new();
@@ -61,15 +77,7 @@ fn render_cost_legend(
     item_colors: &HashMap<String, Color>,
     palette: &ColorPalette,
 ) {
-    let mut legend_items: Vec<String> = items
-        .iter()
-        .filter(|item| item_totals.get(*item).copied().unwrap_or(0.0) >= shared::COST_THRESHOLD)
-        .cloned()
-        .collect();
-
-    if legend_items.is_empty() {
-        legend_items = items.to_vec();
-    }
+    let legend_items = filter_items_by_cost_threshold(items, item_totals);
 
     let mut legend_lines = vec![
         Line::from(Span::styled(
@@ -165,12 +173,15 @@ fn render_cost_chart(
         &palette,
     );
 
+    let filtered_items = filter_items_by_cost_threshold(&chart_data.items, &chart_data.item_totals);
+    let chart_items = &filtered_items;
+
     let chart_area = chunks[0];
     match shared::render_vertical_stacked_bars(
         f,
         chart_area,
         &chart_data.dates,
-        &chart_data.items,
+        chart_items,
         |date, item| {
             chart_data
                 .daily_costs
@@ -281,11 +292,10 @@ pub fn render_cost_view(
     let all_items_chart_data = process_cost_data(&range_filtered_data);
     let all_item_colors = shared::create_color_mapping(&all_items_chart_data.items, palette);
 
-    let filtered_data = shared::apply_filter(
-        &range_filtered_data,
-        app.selected_filter.as_ref(),
-        |d| shared::extract_trimmed_string(&d.line_item),
-    );
+    let filtered_data =
+        shared::apply_filter(&range_filtered_data, app.selected_filter.as_ref(), |d| {
+            shared::extract_trimmed_string(&d.line_item)
+        });
 
     if filtered_data.is_empty() {
         shared::render_empty_state(
