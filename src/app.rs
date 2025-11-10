@@ -85,7 +85,7 @@ impl App {
             selected_filter: None,
             filter_cursor_index: 0,
             chart_scrollbar_visible: false,
-            show_segment_values: true,
+            show_segment_values: false,
         }
     }
 
