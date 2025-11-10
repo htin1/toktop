@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/htin1/toktop/compare/v0.1.3...v0.1.4) - 2025-11-10
+
+### Other
+
+- Refactor summary rendering to support filtering and grouping by model or API keys. Update cost and usage calculations to incorporate selected filters, enhancing data presentation in the UI.
+- default dont show segment value
+
 ## [0.1.3](https://github.com/htin1/toktop/compare/v0.1.2...v0.1.3) - 2025-11-10
 
 ### Other
