@@ -171,6 +171,20 @@ pub fn render_stacked_bar_segment(
     );
 }
 
+pub fn render_stacked_bar_segment_with_value(
+    f: &mut Frame,
+    area: Rect,
+    value_text: &str,
+    color: Color,
+) {
+    f.render_widget(
+        Paragraph::new(value_text)
+            .alignment(ratatui::layout::Alignment::Center)
+            .style(Style::default().fg(Color::Gray).bg(color)),
+        area,
+    );
+}
+
 pub fn render_horizontal_scrollbar(
     f: &mut Frame,
     area: Rect,
@@ -213,9 +227,11 @@ pub fn render_vertical_stacked_bars<F, G>(
     get_value: F,
     get_total: G,
     format_total: impl Fn(f64) -> String,
+    format_segment_value: impl Fn(f64) -> String,
     item_colors: &HashMap<String, Color>,
     max_total: f64,
     scroll_offset: usize,
+    show_segment_values: bool,
 ) -> Option<VerticalBarLayout>
 where
     F: Fn(&str, &str) -> Option<f64>,
@@ -276,7 +292,12 @@ where
                 let segment_y = bars_y + bar_area_height - used_height - segment_height;
                 let color = item_colors.get(item).copied().unwrap_or(Color::White);
                 let segment_area = Rect::new(bar_x, segment_y, layout.bar_width, segment_height);
-                render_stacked_bar_segment(f, segment_area, "", color, Color::Black);
+                if show_segment_values {
+                    let value_text = format_segment_value(value);
+                    render_stacked_bar_segment_with_value(f, segment_area, &value_text, color);
+                } else {
+                    render_stacked_bar_segment(f, segment_area, "", color, Color::Black);
+                }
                 top_segment_area = Some(segment_area);
                 used_height += segment_height;
             }

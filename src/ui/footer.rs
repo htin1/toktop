@@ -25,6 +25,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     }
 
     spans.push(Span::raw("| "));
+    spans.push(Span::styled("d", Style::default().fg(palette.accent)));
+    spans.push(Span::raw("=toggle details "));
+
+    spans.push(Span::raw("| "));
     spans.push(Span::styled("r", Style::default().fg(palette.primary)));
     spans.push(Span::raw("=refresh "));
     spans.push(Span::raw("| "));

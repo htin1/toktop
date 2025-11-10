@@ -196,9 +196,19 @@ fn render_cost_chart(
                 .unwrap_or(0.0)
         },
         |total| format!("${:.0}", total),
+        |value| {
+            if value >= 1.0 {
+                format!("${:.0}", value)
+            } else if value >= 0.1 {
+                format!("${:.1}", value)
+            } else {
+                format!("${:.2}", value)
+            }
+        },
         item_colors,
         max_total,
         scroll_offset,
+        app.show_segment_values,
     ) {
         Some(layout) => {
             shared::handle_chart_scrollbar(

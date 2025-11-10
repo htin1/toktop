@@ -213,9 +213,11 @@ fn render_usage_chart(
                 .unwrap_or(0.0)
         },
         |total| format_tokens(total as u64),
+        |value| format_tokens(value as u64),
         &item_colors,
         max_total as f64,
         scroll_offset,
+        app.show_segment_values,
     ) {
         Some(layout) => {
             shared::handle_chart_scrollbar(

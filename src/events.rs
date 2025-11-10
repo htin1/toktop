@@ -58,6 +58,10 @@ pub fn handle_key_event(app: &mut App, key_code: KeyCode) -> EventAction {
             app.scroll_chart(1);
             EventAction::None
         }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            app.toggle_segment_values();
+            EventAction::None
+        }
         KeyCode::Char('r') | KeyCode::Char('R') => EventAction::Refresh,
         KeyCode::Char('q') | KeyCode::Char('Q') => EventAction::Quit,
         _ => EventAction::None,

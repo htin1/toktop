@@ -62,6 +62,7 @@ pub struct App {
     pub selected_filter: Option<String>,
     pub filter_cursor_index: usize,
     pub chart_scrollbar_visible: bool,
+    pub show_segment_values: bool,
 }
 
 impl App {
@@ -84,6 +85,7 @@ impl App {
             selected_filter: None,
             filter_cursor_index: 0,
             chart_scrollbar_visible: false,
+            show_segment_values: true,
         }
     }
 
@@ -373,6 +375,10 @@ impl App {
                 self.selected_filter = None;
             }
         }
+    }
+
+    pub fn toggle_segment_values(&mut self) {
+        self.show_segment_values = !self.show_segment_values;
     }
 
     pub fn get_available_filters(&self) -> Vec<String> {
