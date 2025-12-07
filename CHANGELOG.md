@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/htin1/toktop/compare/v0.1.4...v0.1.5) - 2025-12-07
+
+### Fixed
+
+- fix cost api error
+- fix encoding
+
+### Other
+
+- Enhance UI color palette and rendering styles. Update chart colors for better contrast, improve block styling in options and summary sections, and implement smart scaling for cost and usage charts to handle outliers effectively.
+
 ## [0.1.4](https://github.com/htin1/toktop/compare/v0.1.3...v0.1.4) - 2025-11-10
 
 ### Other
