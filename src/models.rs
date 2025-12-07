@@ -38,6 +38,9 @@ pub struct DailyUsageData {
 
 #[derive(Deserialize)]
 pub struct OpenAICostResponse {
+    #[serde(default)]
+    #[expect(unused)]
+    pub object: Option<String>,
     pub data: Vec<OpenAIBucket<OpenAICostResult>>,
     #[serde(default)]
     pub has_more: bool,
@@ -47,20 +50,53 @@ pub struct OpenAICostResponse {
 
 #[derive(Deserialize)]
 pub struct OpenAIBucket<T> {
+    #[serde(default)]
+    #[expect(unused)]
+    pub object: Option<String>,
     pub start_time: i64,
+    #[expect(unused)]
+    pub end_time: i64,
     pub results: Vec<T>,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAICostResult {
+    #[serde(default)]
+    #[expect(unused)]
+    pub object: Option<String>,
     pub amount: OpenAICostAmount,
     #[serde(default)]
     pub line_item: Option<String>,
+    #[serde(default)]
+    #[expect(unused)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    #[expect(unused)]
+    pub organization_id: Option<String>,
+    #[serde(default)]
+    #[expect(unused)]
+    pub project_name: Option<String>,
+    #[serde(default)]
+    #[expect(unused)]
+    pub organization_name: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct OpenAICostAmount {
-    pub value: f64,
+    value: serde_json::Value,
+    #[serde(default)]
+    #[expect(unused)]
+    pub currency: Option<String>,
+}
+
+impl OpenAICostAmount {
+    pub fn value(&self) -> f64 {
+        match &self.value {
+            serde_json::Value::Number(n) => n.as_f64().unwrap_or(0.0),
+            serde_json::Value::String(s) => s.parse().unwrap_or(0.0),
+            _ => 0.0,
+        }
+    }
 }
 
 #[derive(Deserialize)]

@@ -30,37 +30,45 @@ impl OpenAIClient {
         let start_ts = start_time.timestamp();
         let mut all_buckets = Vec::new();
         let mut page: Option<String> = None;
-        loop {
-            let mut url = format!(
-                "{}/costs?start_time={}&group_by=line_item&limit=30",
-                self.base_url, start_ts
-            );
+
+        for _ in 0..30 {
+            let mut params: Vec<(&str, String)> = vec![
+                ("start_time", start_ts.to_string()),
+                ("group_by", "line_item".to_string()),
+                ("limit", "180".to_string()),
+            ];
             if let Some(ref p) = page {
-                url = format!("{}&page={}", url, urlencoding::encode(p));
+                params.push(("page", p.clone()));
             }
+
             let response = self
                 .client
-                .get(&url)
+                .get(format!("{}/costs", self.base_url))
+                .query(&params)
                 .header("Authorization", format!("Bearer {}", self.api_key))
                 .send()
                 .await
                 .context("Failed to fetch costs")?;
+
             let status = response.status();
             let text = response.text().await.context("Failed to read response")?;
+
             if !status.is_success() {
                 return Err(anyhow::anyhow!("API error: {} - {}", status, text));
             }
 
             let resp: OpenAICostResponse = serde_json::from_str(&text).context(format!(
-                "Parse error. Response: {}",
-                text.chars().take(500).collect::<String>()
+                "Parse error: {}",
+                text.chars().take(200).collect::<String>()
             ))?;
+
             all_buckets.extend(resp.data);
             if !resp.has_more {
                 break;
             }
             page = resp.next_page;
         }
+
         Ok(all_buckets)
     }
 
@@ -72,18 +80,21 @@ impl OpenAIClient {
         let mut all_buckets = Vec::new();
         let mut page: Option<String> = None;
 
-        loop {
-            let mut url = format!(
-                "{}/usage/{}?start_time={}&interval=1d&group_by=model&group_by=api_key_id",
-                self.base_url, endpoint, start_ts
-            );
+        for _ in 0..30 {
+            let mut params: Vec<(&str, String)> = vec![
+                ("start_time", start_ts.to_string()),
+                ("interval", "1d".to_string()),
+                ("group_by", "model".to_string()),
+                ("group_by", "api_key_id".to_string()),
+            ];
             if let Some(ref p) = page {
-                url = format!("{}&page={}", url, urlencoding::encode(p));
+                params.push(("page", p.clone()));
             }
 
             let response = self
                 .client
-                .get(&url)
+                .get(format!("{}/usage/{}", self.base_url, endpoint))
+                .query(&params)
                 .header("Authorization", format!("Bearer {}", self.api_key))
                 .send()
                 .await

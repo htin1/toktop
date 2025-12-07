@@ -64,7 +64,7 @@ async fn fetch_openai_data(client: Option<OpenAIClient>) -> crate::provider::Fet
                     for result in bucket.results {
                         cost_data.push(DailyData {
                             date,
-                            cost: result.amount.value,
+                            cost: result.amount.value(),
                             line_item: result.line_item,
                         });
                     }
