@@ -7,11 +7,12 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
-pub const LEGEND_WIDTH: u16 = 50;
+pub const LEGEND_WIDTH: u16 = 38;
 pub const COST_THRESHOLD: f64 = 1.0;
 pub const VERTICAL_BAR_SPACING: u16 = 1;
-pub const MAX_BAR_WIDTH: u16 = 20;
+pub const MAX_BAR_WIDTH: u16 = 16;
 pub const HORIZONTAL_SCROLLBAR_HEIGHT: u16 = 1;
+pub const OUTLIER_THRESHOLD: f64 = 3.0; // Bar is outlier if > 3x median
 
 #[derive(Clone, Copy)]
 pub struct VerticalBarLayout {
@@ -117,6 +118,40 @@ pub fn create_color_mapping(items: &[String], palette: &ColorPalette) -> HashMap
             )
         })
         .collect()
+}
+
+/// Calculate a display max that handles outliers gracefully.
+/// Returns (display_max, actual_max) where display_max may be capped if there are outliers.
+pub fn calculate_smart_scale(totals: &[f64]) -> (f64, f64) {
+    if totals.is_empty() {
+        return (1.0, 1.0);
+    }
+
+    let actual_max = totals.iter().cloned().fold(0.0_f64, f64::max);
+    if actual_max <= 0.0 {
+        return (1.0, 0.0);
+    }
+
+    // Sort for percentile calculation
+    let mut sorted: Vec<f64> = totals.iter().cloned().filter(|&v| v > 0.0).collect();
+    if sorted.is_empty() {
+        return (actual_max, actual_max);
+    }
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Use 75th percentile as reference for outlier detection
+    let p75_idx = (sorted.len() as f64 * 0.75).floor() as usize;
+    let p75_idx = p75_idx.min(sorted.len().saturating_sub(1));
+    let p75 = sorted[p75_idx];
+
+    // If max is significantly higher than p75, cap the display scale
+    if actual_max > p75 * OUTLIER_THRESHOLD && p75 > 0.0 {
+        // Use a scale that shows outliers as "compressed" but still visible
+        let display_max = p75 * 2.0;
+        (display_max, actual_max)
+    } else {
+        (actual_max, actual_max)
+    }
 }
 
 pub fn extract_trimmed_string(opt: &Option<String>) -> Option<&str> {
@@ -241,6 +276,11 @@ where
         return None;
     }
 
+    // Calculate smart scale to handle outliers
+    let totals: Vec<f64> = dates.iter().map(|d| get_total(d)).collect();
+    let (display_max, _actual_max) = calculate_smart_scale(&totals);
+    let scale_max = display_max.max(1.0);
+
     let label_height: u16 = 1;
     let value_label_height: u16 = 1;
     let scrollbar_height = HORIZONTAL_SCROLLBAR_HEIGHT;
@@ -268,6 +308,9 @@ where
             + layout.offset
             + (visible_idx as u16) * (layout.bar_width + layout.spacing);
 
+        // Check if this bar exceeds the display scale (is an outlier)
+        let is_capped = total > scale_max;
+
         let mut used_height = 0;
         let mut top_segment_area: Option<Rect> = None;
         for item in items {
@@ -276,8 +319,16 @@ where
                     continue;
                 }
 
+                // Use scale_max for height calculation to compress outliers
+                let display_value = if is_capped {
+                    // Proportionally scale within the capped bar
+                    value * (scale_max / total)
+                } else {
+                    value
+                };
+
                 let mut segment_height =
-                    ((value / max_total) * bar_area_height as f64).round() as u16;
+                    ((display_value / scale_max) * bar_area_height as f64).round() as u16;
                 if segment_height == 0 {
                     segment_height = 1;
                 }
@@ -314,17 +365,29 @@ where
             );
         }
 
+        // Render the total value label above the bar
         if total > 0.0 {
             if let Some(segment_area) = top_segment_area {
-                let label_y = segment_area.y - 1;
+                let label_y = segment_area.y.saturating_sub(1);
+                // Show capped indicator for outliers
+                let label_text = if is_capped {
+                    format!("{}", format_total(total))
+                } else {
+                    format_total(total)
+                };
+                let label_style = if is_capped {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD)
+                };
                 f.render_widget(
-                    Paragraph::new(format_total(total))
+                    Paragraph::new(label_text)
                         .alignment(Alignment::Center)
-                        .style(
-                            Style::default()
-                                .fg(Color::White)
-                                .add_modifier(Modifier::BOLD),
-                        ),
+                        .style(label_style),
                     Rect::new(bar_x, label_y, layout.bar_width, 1),
                 );
             }

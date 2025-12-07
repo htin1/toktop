@@ -155,9 +155,15 @@ fn render_cost_chart(
         .fold(0.0, f64::max)
         .max(1.0);
 
-    let block = Block::default().borders(Borders::ALL).title(title);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(palette.primary).add_modifier(Modifier::DIM))
+        .title(Span::styled(
+            title,
+            Style::default().fg(palette.primary).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(area);
     f.render_widget(block, area);
-    let inner = Block::default().borders(Borders::ALL).inner(area);
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)

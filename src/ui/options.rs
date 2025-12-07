@@ -13,7 +13,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let provider = app.current_provider();
     let palette = ColorPalette::for_provider(provider);
 
-    let block = Block::default().borders(Borders::ALL).title("Options");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(palette.primary).add_modifier(Modifier::DIM))
+        .title(Span::styled(
+            "Options",
+            Style::default().fg(palette.primary).add_modifier(Modifier::BOLD),
+        ));
     let inner = block.inner(area);
     f.render_widget(block, area);
 

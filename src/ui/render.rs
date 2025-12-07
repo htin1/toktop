@@ -6,13 +6,13 @@ use ratatui::{
 };
 
 pub fn render(f: &mut Frame, app: &mut App) {
-    // Top panel (options + summary)
+    // Top panel (options + summary) - use fixed height for better space utilization
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(25),
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(12), // Fixed height for options/summary
+            Constraint::Min(10),    // Chart gets remaining space
+            Constraint::Length(3),  // Footer
         ])
         .split(f.size());
 

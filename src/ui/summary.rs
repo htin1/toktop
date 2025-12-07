@@ -23,10 +23,14 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     if app.loading || !has_data {
         let mut text = vec![];
         text.extend(banner::render_animated_banner(app, &palette));
-        f.render_widget(
-            Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Summary")),
-            area,
-        );
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(palette.primary).add_modifier(Modifier::DIM))
+            .title(Span::styled(
+                "Summary",
+                Style::default().fg(palette.primary).add_modifier(Modifier::BOLD),
+            ));
+        f.render_widget(Paragraph::new(text).block(block), area);
         return;
     }
 
@@ -87,7 +91,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             .unwrap_or_else(|| "No data in selected range".to_string())
     };
 
-    let block = Block::default().borders(Borders::ALL).title("Summary");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(palette.primary).add_modifier(Modifier::DIM))
+        .title(Span::styled(
+            "Summary",
+            Style::default().fg(palette.primary).add_modifier(Modifier::BOLD),
+        ));
     let inner = block.inner(area);
     f.render_widget(block, area);
 

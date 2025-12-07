@@ -165,7 +165,13 @@ fn render_usage_chart(
         .fold(0u64, u64::max)
         .max(1);
 
-    let block = Block::default().borders(Borders::ALL).title(title);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(palette.primary).add_modifier(Modifier::DIM))
+        .title(Span::styled(
+            title,
+            Style::default().fg(palette.primary).add_modifier(Modifier::BOLD),
+        ));
     let inner = block.inner(area);
     f.render_widget(block, area);
 

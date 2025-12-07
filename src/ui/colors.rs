@@ -49,27 +49,23 @@ impl ColorPalette {
             accent: Color::Green,
             // Red for errors
             error: Color::Red,
-            // Cool color palette for charts
+            // Distinct color palette - maximized contrast between adjacent colors
             chart_colors: vec![
-                Color::Blue,
-                Color::Cyan,
-                Color::Green,
-                Color::Magenta,
-                Color::Yellow,
-                Color::LightBlue,
                 Color::Rgb(0x4A, 0x90, 0xE2), // Bright blue
                 Color::Rgb(0x50, 0xC8, 0x78), // Mint green
-                Color::Rgb(0x9B, 0x59, 0xB6), // Purple
                 Color::Rgb(0xE7, 0x4C, 0x3C), // Coral red
                 Color::Rgb(0xF3, 0x9C, 0x12), // Orange
+                Color::Rgb(0x9B, 0x59, 0xB6), // Purple
                 Color::Rgb(0x1A, 0xBC, 0x9C), // Turquoise
-                Color::Rgb(0x34, 0x98, 0xDB), // Sky blue
-                Color::Rgb(0x95, 0xA5, 0xA6), // Gray-blue
                 Color::Rgb(0xE6, 0x7E, 0x22), // Dark orange
                 Color::Rgb(0x8E, 0x44, 0xAD), // Deep purple
-                Color::Rgb(0x16, 0xA0, 0x85), // Teal
                 Color::Rgb(0x27, 0xAE, 0x60), // Emerald
-                Color::Rgb(0x29, 0x80, 0xB9), // Steel blue
+                Color::Rgb(0xE9, 0x1E, 0x63), // Pink
+                Color::Rgb(0x00, 0xBC, 0xD4), // Cyan
+                Color::Rgb(0xFF, 0xEB, 0x3B), // Yellow
+                Color::Rgb(0x79, 0x55, 0x48), // Brown
+                Color::Rgb(0x60, 0x7D, 0x8B), // Blue gray
+                Color::Rgb(0xCD, 0xDC, 0x39), // Lime
             ],
             // Cyan for selected background
             selected_bg: Color::Cyan,
