@@ -21,6 +21,7 @@ chrono = "0.4"
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 dotenvy = "0.15"
+urlencoding = "2.1"
 
 [profile.release]
 codegen-units = 1 # Allows compiler to perform better optimization.

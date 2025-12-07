@@ -36,7 +36,7 @@ impl OpenAIClient {
                 self.base_url, start_ts
             );
             if let Some(ref p) = page {
-                url = format!("{}&page={}", url, p);
+                url = format!("{}&page={}", url, urlencoding::encode(p));
             }
             let response = self
                 .client
@@ -53,7 +53,7 @@ impl OpenAIClient {
 
             let resp: OpenAICostResponse = serde_json::from_str(&text).context(format!(
                 "Parse error. Response: {}",
-                text.chars().take(200).collect::<String>()
+                text.chars().take(500).collect::<String>()
             ))?;
             all_buckets.extend(resp.data);
             if !resp.has_more {
@@ -78,7 +78,7 @@ impl OpenAIClient {
                 self.base_url, endpoint, start_ts
             );
             if let Some(ref p) = page {
-                url = format!("{}&page={}", url, p);
+                url = format!("{}&page={}", url, urlencoding::encode(p));
             }
 
             let response = self
